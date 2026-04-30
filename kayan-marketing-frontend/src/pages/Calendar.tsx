@@ -1,13 +1,14 @@
 import { useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { addMonths, subMonths, addWeeks, subWeeks, format, startOfWeek, endOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, ListChecks } from "lucide-react";
 import { useCurrentBrand } from "../hooks/use-current-brand";
 import { MonthlyView } from "../features/calendar/MonthlyView";
 import { WeeklyView } from "../features/calendar/WeeklyView";
 import { AddEntryModal } from "../features/calendar/AddEntryModal";
 import { EntryDetailPanel } from "../features/calendar/EntryDetailPanel";
 import { BranchSelector } from "../features/branches/BranchSelector";
+import { CalendarSidebar } from "../features/calendar/CalendarSidebar";
 
 type ViewMode = "monthly" | "weekly";
 
@@ -19,6 +20,7 @@ export default function CalendarPage(): JSX.Element {
   const [cursor, setCursor] = useState<Date>(new Date());
   const [openEntryId, setOpenEntryId] = useState<string | null>(null);
   const [addEntryDate, setAddEntryDate] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const branchFilter = searchParams.get(BRANCH_PARAM);
@@ -111,6 +113,15 @@ export default function CalendarPage(): JSX.Element {
           </div>
 
           <button
+            onClick={() => setSidebarOpen((open) => !open)}
+            className={`btn ${sidebarOpen ? "btn-primary" : "btn-ghost"}`}
+            title="Bird's-eye view of the month"
+          >
+            <ListChecks size={14} />
+            <span className="hidden sm:inline">Bird's-eye</span>
+          </button>
+
+          <button
             onClick={() => setAddEntryDate(format(cursor, "yyyy-MM-dd"))}
             className="btn btn-primary"
           >
@@ -145,6 +156,13 @@ export default function CalendarPage(): JSX.Element {
         defaultDate={addEntryDate ?? undefined}
       />
       <EntryDetailPanel entryId={openEntryId} onClose={() => setOpenEntryId(null)} />
+      <CalendarSidebar
+        cursor={cursor}
+        branchId={branchFilter}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onOpenEntry={(id) => setOpenEntryId(id)}
+      />
     </div>
   );
 }
