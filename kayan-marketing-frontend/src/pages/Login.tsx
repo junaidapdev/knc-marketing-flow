@@ -80,10 +80,10 @@ export default function LoginPage(): JSX.Element {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-warmbg p-6">
+    <div className="min-h-screen flex items-center justify-center bg-warmbg p-4 md:p-6">
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="card w-full max-w-md p-9 space-y-5 shadow-md"
+        className="card w-full max-w-md p-6 md:p-9 space-y-5 shadow-md"
       >
         <div className="flex items-center gap-3">
           <BrandMark />

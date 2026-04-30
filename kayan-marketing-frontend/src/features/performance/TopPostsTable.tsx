@@ -33,8 +33,8 @@ export function TopPostsTable({ posts }: Props): JSX.Element {
   }
 
   return (
-    <div className="overflow-hidden">
-      <table className="w-full text-[13px]">
+    <div className="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
+      <table className="w-full text-[13px] min-w-[640px]">
         <thead className="text-left">
           <tr>
             <th className="px-3 py-3 eyebrow">Platform</th>

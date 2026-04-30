@@ -50,16 +50,16 @@ export default function BudgetPage(): JSX.Element {
   }, [summary.data]);
 
   return (
-    <div className="px-9 pt-8 pb-12 space-y-5">
+    <div className="px-4 md:px-9 pt-5 md:pt-8 pb-12 space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="h-greeting">
+          <h1 className="h-greeting text-[24px] md:text-[30px]">
             Budget <em>tracker</em>
           </h1>
-          <p className="text-[14px] text-ink-2 mt-1.5">{format(cursor, "MMMM yyyy")}</p>
+          <p className="text-[13px] md:text-[14px] text-ink-2 mt-1 md:mt-1.5">{format(cursor, "MMMM yyyy")}</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 md:gap-2.5">
           <div className="flex items-center gap-1">
             <button
               onClick={() => setCursor((c) => subMonths(c, 1))}
@@ -72,7 +72,8 @@ export default function BudgetPage(): JSX.Element {
               onClick={() => setCursor(startOfMonth(new Date()))}
               className="btn btn-ghost"
             >
-              This month
+              <span className="hidden sm:inline">This month</span>
+              <span className="sm:hidden">Now</span>
             </button>
             <button
               onClick={() => setCursor((c) => addMonths(c, 1))}
@@ -84,7 +85,8 @@ export default function BudgetPage(): JSX.Element {
           </div>
           <button onClick={() => setEditing(true)} className="btn btn-primary">
             <Pencil size={13} />
-            Edit Budget
+            <span className="hidden sm:inline">Edit Budget</span>
+            <span className="sm:hidden">Edit</span>
           </button>
         </div>
       </header>

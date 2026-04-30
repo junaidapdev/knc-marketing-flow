@@ -72,7 +72,8 @@ export function WeeklyView({ cursor, branchId, onOpenEntry, onAddOnDay }: Props)
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_260px] gap-4">
       <div className="rounded-lg border border-line overflow-hidden bg-paper">
-        <div className="grid grid-cols-7 border-b border-line bg-cream-2/50">
+        {/* Desktop header: 7-col grid */}
+        <div className="hidden md:grid grid-cols-7 border-b border-line bg-cream-2/50">
           {days.map((day, i) => {
             const today = isToday(day);
             const dayKey = format(day, "yyyy-MM-dd");
@@ -114,7 +115,8 @@ export function WeeklyView({ cursor, branchId, onOpenEntry, onAddOnDay }: Props)
           })}
         </div>
 
-        <div className="grid grid-cols-7 min-h-[500px]">
+        {/* Desktop 7-col body */}
+        <div className="hidden md:grid grid-cols-7 min-h-[500px]">
           {days.map((day) => {
             const key = format(day, "yyyy-MM-dd");
             const dayEntries = entriesByDay.get(key) ?? [];
@@ -161,6 +163,80 @@ export function WeeklyView({ cursor, branchId, onOpenEntry, onAddOnDay }: Props)
                       + Add
                     </button>
                   </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Mobile: vertical day list */}
+        <div className="md:hidden divide-y divide-line">
+          {days.map((day, i) => {
+            const key = format(day, "yyyy-MM-dd");
+            const dayEntries = entriesByDay.get(key) ?? [];
+            const today = isToday(day);
+            const shootCount = shootCountByDay.get(key) ?? 0;
+            const isShootDay = shootCount > 0;
+            const isOverCapacity = shootCount > shootCapacity;
+            return (
+              <div
+                key={key}
+                className={`px-3 py-3 ${
+                  today
+                    ? "bg-yellow-bg/40"
+                    : isShootDay
+                      ? isOverCapacity
+                        ? "bg-rose/10"
+                        : "bg-yellow/10"
+                      : ""
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <div className="eyebrow">{WEEKDAY_LABELS[i]}</div>
+                    <div
+                      className={`text-[15px] font-serif tracking-tight mt-0.5 ${
+                        today ? "text-ink font-semibold" : "text-ink"
+                      }`}
+                    >
+                      {format(day, "d MMM")}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isShootDay && (
+                      <span
+                        className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                          isOverCapacity
+                            ? "bg-rose-deep/20 text-rose-deep"
+                            : "bg-obsidian text-yellow"
+                        }`}
+                      >
+                        <Clapperboard size={9} />
+                        {shootCount}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onAddOnDay(day)}
+                      className="text-[11px] text-ink-3 hover:text-ink border border-dashed border-line-2 rounded-md px-2 py-1"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                </div>
+                {dayEntries.length === 0 ? (
+                  <p className="text-[12px] text-ink-3 italic">No entries.</p>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {dayEntries.map((entry) => (
+                      <EntryChip
+                        key={entry.id}
+                        entry={entry}
+                        onClick={onOpenEntry}
+                        variant="stacked"
+                      />
+                    ))}
+                  </div>
                 )}
               </div>
             );

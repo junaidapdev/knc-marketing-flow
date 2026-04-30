@@ -77,7 +77,7 @@ export function AIPanel(): JSX.Element | null {
   };
 
   return (
-    <aside className="fixed top-4 right-4 bottom-4 w-full sm:w-[400px] bg-paper border border-line rounded-lg shadow-lg z-40 flex flex-col text-ink">
+    <aside className="fixed inset-2 sm:inset-auto sm:top-4 sm:right-4 sm:bottom-4 sm:w-[400px] bg-paper border border-line rounded-lg shadow-lg z-40 flex flex-col text-ink">
       <header className="flex items-center justify-between px-4 py-3.5 border-b border-line">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-full bg-obsidian text-yellow grid place-items-center">

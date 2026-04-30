@@ -14,6 +14,7 @@ import { useCalendarEntries } from "./hooks/use-calendar-entries";
 import { EntryChip } from "./EntryChip";
 import { useCurrentBrand } from "../../hooks/use-current-brand";
 import { useBrand } from "../brand/hooks/use-brand";
+import { ENTRY_TYPE_COLORS } from "../../constants/entry-colors";
 import type { CalendarEntry } from "../../types/calendar-entry";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -85,14 +86,15 @@ export function MonthlyView({
         {WEEKDAY_LABELS.map((label) => (
           <div
             key={label}
-            className="px-3 py-2.5 text-[10.5px] uppercase tracking-[0.14em] text-ink-3 font-medium"
+            className="px-1 sm:px-3 py-2 sm:py-2.5 text-[9px] sm:text-[10.5px] uppercase tracking-[0.14em] text-ink-3 font-medium text-center sm:text-left"
           >
-            {label}
+            <span className="hidden sm:inline">{label}</span>
+            <span className="sm:hidden">{label.charAt(0)}</span>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 auto-rows-fr min-h-[600px]">
+      <div className="grid grid-cols-7 auto-rows-fr min-h-[420px] sm:min-h-[600px]">
         {days.map((day) => {
           const dayKey = format(day, "yyyy-MM-dd");
           const dayEntries = entriesByDay.get(dayKey) ?? [];
@@ -114,7 +116,7 @@ export function MonthlyView({
                   onDayClick(day);
                 }
               }}
-              className={`day-cell group relative flex flex-col items-stretch text-left border-b border-r border-line p-2 ${
+              className={`day-cell group relative flex flex-col items-stretch text-left border-b border-r border-line p-1 sm:p-2 ${
                 inMonth ? "" : "opacity-50 bg-cream-2/20"
               } ${
                 today
@@ -126,11 +128,11 @@ export function MonthlyView({
                     : ""
               }`}
             >
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-0.5 sm:mb-1">
                 <span
-                  className={`text-[12px] font-semibold ${
+                  className={`text-[11px] sm:text-[12px] font-semibold ${
                     today
-                      ? "h-[22px] w-[22px] inline-flex items-center justify-center rounded-full bg-obsidian text-yellow text-[11px]"
+                      ? "h-[18px] w-[18px] sm:h-[22px] sm:w-[22px] inline-flex items-center justify-center rounded-full bg-obsidian text-yellow text-[10px] sm:text-[11px]"
                       : "text-ink-2"
                   }`}
                 >
@@ -139,7 +141,7 @@ export function MonthlyView({
                 <div className="flex items-center gap-1">
                   {isShootDay && (
                     <span
-                      className={`flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                      className={`hidden sm:flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                         isOverCapacity
                           ? "bg-rose-deep/20 text-rose-deep"
                           : "bg-obsidian text-yellow"
@@ -159,14 +161,32 @@ export function MonthlyView({
                       onAddOnDay(day);
                     }}
                     aria-label={`Add entry on ${dayKey}`}
-                    className="opacity-0 group-hover:opacity-100 text-ink-3 hover:text-ink text-base leading-none px-1"
+                    className="hidden sm:block opacity-0 group-hover:opacity-100 text-ink-3 hover:text-ink text-base leading-none px-1"
                   >
                     +
                   </button>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-1 min-h-0">
+              {/* Mobile: dot row + count, Desktop: chips */}
+              <div className="sm:hidden flex flex-wrap gap-0.5 min-h-0">
+                {dayEntries.slice(0, 4).map((entry) => (
+                  <span
+                    key={entry.id}
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      ENTRY_TYPE_COLORS[entry.type].bg
+                    }`}
+                    aria-label={entry.title}
+                  />
+                ))}
+                {dayEntries.length > 4 && (
+                  <span className="text-[8.5px] text-ink-3 leading-none">
+                    +{dayEntries.length - 4}
+                  </span>
+                )}
+              </div>
+
+              <div className="hidden sm:flex flex-col gap-1 min-h-0">
                 {dayEntries.slice(0, MAX_CHIPS_PER_DAY).map((entry) => (
                   <EntryChip
                     key={entry.id}

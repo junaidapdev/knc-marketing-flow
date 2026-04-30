@@ -62,16 +62,16 @@ export default function CalendarPage(): JSX.Element {
         )}`;
 
   return (
-    <div className="px-9 pt-8 pb-12">
-      <header className="flex flex-wrap items-start justify-between gap-4 mb-6">
+    <div className="px-4 md:px-9 pt-5 md:pt-8 pb-12">
+      <header className="flex flex-col xl:flex-row xl:flex-wrap xl:items-start xl:justify-between gap-4 mb-5 md:mb-6">
         <div>
-          <h1 className="h-greeting">
+          <h1 className="h-greeting text-[24px] md:text-[30px]">
             Editorial <em>calendar</em>
           </h1>
-          <p className="text-[14px] text-ink-2 mt-1.5">{headerLabel}</p>
+          <p className="text-[13px] md:text-[14px] text-ink-2 mt-1 md:mt-1.5">{headerLabel}</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 md:gap-2.5">
           <div className="flex items-center gap-1">
             <button onClick={goPrev} aria-label="Previous" className="iconbtn">
               <ChevronLeft size={16} />
@@ -84,7 +84,7 @@ export default function CalendarPage(): JSX.Element {
             </button>
           </div>
 
-          <div className="min-w-[200px]">
+          <div className="w-full sm:w-auto sm:min-w-[200px] order-last sm:order-none">
             <BranchSelector
               brandId={brandId}
               value={branchFilter ?? ""}
@@ -115,7 +115,8 @@ export default function CalendarPage(): JSX.Element {
             className="btn btn-primary"
           >
             <Plus size={14} />
-            Add Entry
+            <span className="hidden sm:inline">Add Entry</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
       </header>

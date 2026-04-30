@@ -51,16 +51,16 @@ export default function TodayPage(): JSX.Element {
   const friendlyDate = format(new Date(), "EEEE, MMMM d");
 
   return (
-    <div className="px-9 pt-8 pb-12">
-      <header className="flex items-start justify-between gap-6 mb-7">
+    <div className="px-4 md:px-9 pt-5 md:pt-8 pb-12">
+      <header className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 lg:gap-6 mb-5 md:mb-7">
         <div>
-          <h1 className="h-greeting">
+          <h1 className="h-greeting text-[24px] md:text-[30px]">
             Today's <em>plan</em>
           </h1>
-          <p className="text-[14px] text-ink-2 mt-1.5">{friendlyDate}</p>
+          <p className="text-[13px] md:text-[14px] text-ink-2 mt-1 md:mt-1.5">{friendlyDate}</p>
         </div>
-        <div className="flex items-center gap-2.5">
-          <div className="search-bar">
+        <div className="flex items-center gap-2 md:gap-2.5 flex-wrap">
+          <div className="search-bar hidden xl:flex">
             <Search size={15} />
             <input placeholder="Search campaigns, entries, tasks…" />
             <span className="kbd">⌘K</span>
@@ -80,11 +80,13 @@ export default function TodayPage(): JSX.Element {
           </button>
           <button onClick={() => setQuickAddOpen(true)} className="btn btn-ghost">
             <Plus size={14} />
-            New Task
+            <span className="hidden sm:inline">New Task</span>
+            <span className="sm:hidden">Task</span>
           </button>
           <button onClick={() => setAddEntryOpen(true)} className="btn btn-primary">
             <Plus size={14} />
-            Add Entry
+            <span className="hidden sm:inline">Add Entry</span>
+            <span className="sm:hidden">Entry</span>
           </button>
         </div>
       </header>
@@ -107,8 +109,8 @@ export default function TodayPage(): JSX.Element {
 
           <OverdueAlertStrip count={summary.data.overdue.count} />
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            <div className="lg:col-span-2 space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
+            <div className="lg:col-span-2 space-y-4 md:space-y-5">
               <section className="card">
                 <div className="flex items-baseline justify-between mb-4">
                   <h2 className="h-card">Today's tasks</h2>
@@ -140,7 +142,7 @@ export default function TodayPage(): JSX.Element {
               )}
             </div>
 
-            <aside className="space-y-4">
+            <aside className="space-y-4 lg:space-y-4">
               <ThreeDayRadar radar={summary.data.radar} />
               <BudgetSnapshot budget={summary.data.budget} />
             </aside>

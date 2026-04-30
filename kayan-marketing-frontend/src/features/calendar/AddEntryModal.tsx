@@ -274,14 +274,14 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/40 backdrop-blur-sm p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/40 backdrop-blur-sm p-2 sm:p-6"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl bg-paper rounded-lg shadow-lg text-ink max-h-[90vh] overflow-y-auto canvas-scroll"
+        className="w-full max-w-2xl bg-paper rounded-lg shadow-lg text-ink max-h-[95vh] sm:max-h-[90vh] overflow-y-auto canvas-scroll"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-7 py-5 border-b border-line">
+        <div className="flex items-center justify-between px-4 sm:px-7 py-4 sm:py-5 border-b border-line sticky top-0 bg-paper z-10">
           <div>
             <h2 className="font-serif text-[22px] tracking-tight text-ink">
               Add calendar entry
@@ -295,7 +295,7 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
           </button>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="px-7 py-6 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="px-4 sm:px-7 py-5 sm:py-6 space-y-4">
           <div>
             <label className="field-label">Title</label>
             <input type="text" {...register("title")} className="form-input" />
@@ -304,7 +304,7 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="field-label">Type</label>
               <select {...register("type")} className="form-select">
@@ -380,7 +380,7 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
 
           {/* Shoot day + editor offset — only relevant for batch-mode videos. */}
           {useBatchChain && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="field-label">Shoot day</label>
                 <input
@@ -458,7 +458,7 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
             <textarea rows={2} {...register("description")} className="form-textarea" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="field-label">Budget (SAR)</label>
               <input

@@ -94,11 +94,11 @@ export function LogTopPostModal({ brandId, isOpen, onClose }: Props): JSX.Elemen
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/40 backdrop-blur-sm p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/40 backdrop-blur-sm p-3 sm:p-6"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg bg-paper rounded-lg shadow-lg text-ink max-h-[90vh] overflow-y-auto canvas-scroll"
+        className="w-full max-w-lg bg-paper rounded-lg shadow-lg text-ink max-h-[95vh] sm:max-h-[90vh] overflow-y-auto canvas-scroll"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-line">
@@ -109,7 +109,7 @@ export function LogTopPostModal({ brandId, isOpen, onClose }: Props): JSX.Elemen
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="px-5 py-5 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Platform">
               <select
                 {...register("platform")}
@@ -139,7 +139,7 @@ export function LogTopPostModal({ brandId, isOpen, onClose }: Props): JSX.Elemen
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Plays">
               <input
                 type="number"

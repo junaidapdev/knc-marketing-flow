@@ -107,12 +107,12 @@ export default function SettingsPage(): JSX.Element {
   };
 
   return (
-    <div className="px-9 pt-8 pb-12 space-y-7">
+    <div className="px-4 md:px-9 pt-5 md:pt-8 pb-12 space-y-6 md:space-y-7">
       <header>
-        <h1 className="h-greeting">
+        <h1 className="h-greeting text-[24px] md:text-[30px]">
           Settings <em>and brand voice</em>
         </h1>
-        <p className="text-[14px] text-ink-2 mt-1.5">
+        <p className="text-[13px] md:text-[14px] text-ink-2 mt-1 md:mt-1.5">
           Voice and Brand DNA are read by the AI assistant on every generation.
         </p>
       </header>

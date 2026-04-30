@@ -99,13 +99,13 @@ export default function PerformancePage(): JSX.Element {
   });
 
   return (
-    <div className="px-9 pt-8 pb-12 space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
+    <div className="px-4 md:px-9 pt-5 md:pt-8 pb-12 space-y-5 md:space-y-6">
+      <header className="flex flex-col lg:flex-row lg:flex-wrap lg:items-start lg:justify-between gap-3">
         <div>
-          <h1 className="h-greeting">
+          <h1 className="h-greeting text-[24px] md:text-[30px]">
             Performance <em>pulse</em>
           </h1>
-          <p className="text-[14px] text-ink-2 mt-1.5">
+          <p className="text-[13px] md:text-[14px] text-ink-2 mt-1 md:mt-1.5">
             Weekly snapshots, follower growth, and the posts that punched above their weight.
           </p>
           <p className="text-[12px] text-ink-3 mt-1">
@@ -113,7 +113,7 @@ export default function PerformancePage(): JSX.Element {
             {ingestStatus && <span className="ml-2 text-ink-2">· {ingestStatus}</span>}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={onRefresh}
             disabled={ingest.isPending}
@@ -121,15 +121,20 @@ export default function PerformancePage(): JSX.Element {
             title="Pull the latest follower count + recent posts from Instagram and TikTok via Apify."
           >
             <RefreshCw size={14} className={ingest.isPending ? "animate-spin" : ""} />
-            {ingest.isPending ? "Refreshing…" : "Refresh from Apify"}
+            <span className="hidden sm:inline">
+              {ingest.isPending ? "Refreshing…" : "Refresh from Apify"}
+            </span>
+            <span className="sm:hidden">{ingest.isPending ? "…" : "Refresh"}</span>
           </button>
           <button onClick={() => setSnapshotOpen(true)} className="btn btn-ghost">
             <Plus size={14} />
-            Log Snapshot
+            <span className="hidden sm:inline">Log Snapshot</span>
+            <span className="sm:hidden">Snapshot</span>
           </button>
           <button onClick={() => setTopPostOpen(true)} className="btn btn-ghost">
             <Plus size={14} />
-            Log Top Post
+            <span className="hidden sm:inline">Log Top Post</span>
+            <span className="sm:hidden">Top Post</span>
           </button>
         </div>
       </header>

@@ -75,11 +75,11 @@ export default function CampaignDetailPage(): JSX.Element {
   }, [id, detail.data, setAIContext, resetAIContext]);
 
   if (!id) {
-    return <div className="px-9 pt-8 text-rose-deep">Missing campaign id.</div>;
+    return <div className="px-4 md:px-9 pt-5 md:pt-8 text-rose-deep">Missing campaign id.</div>;
   }
 
   return (
-    <div className="px-9 pt-8 pb-12">
+    <div className="px-4 md:px-9 pt-5 md:pt-8 pb-12">
       <button
         onClick={() => navigate(ROUTES.CAMPAIGNS)}
         className="flex items-center gap-1 text-[13px] text-ink-3 hover:text-ink mb-4"
@@ -99,7 +99,7 @@ export default function CampaignDetailPage(): JSX.Element {
         <>
           <CampaignHeader campaign={detail.data} />
 
-          <nav className="flex flex-wrap gap-1 border-b border-line mb-5">
+          <nav className="flex gap-1 border-b border-line mb-5 overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0 whitespace-nowrap">
             {TABS.map((key) => {
               const locked =
                 key === "results" && detail.data!.status !== CAMPAIGN_STATUSES.COMPLETED;
@@ -108,7 +108,7 @@ export default function CampaignDetailPage(): JSX.Element {
                   key={key}
                   onClick={() => !locked && setTab(key)}
                   disabled={locked}
-                  className={`px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition ${
+                  className={`px-3 md:px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition flex-shrink-0 ${
                     tab === key
                       ? "border-obsidian text-ink"
                       : "border-transparent text-ink-2 hover:text-ink"
@@ -167,10 +167,10 @@ function CampaignHeader({ campaign }: { campaign: CampaignDetail }): JSX.Element
   };
 
   return (
-    <header className="flex flex-wrap items-start justify-between gap-3 mb-6">
-      <div>
-        <h1 className="h-greeting">{campaign.name}</h1>
-        <p className="text-[14px] text-ink-2 mt-1.5">
+    <header className="flex flex-wrap items-start justify-between gap-3 mb-5 md:mb-6">
+      <div className="min-w-0 flex-1">
+        <h1 className="h-greeting text-[22px] md:text-[30px] break-words">{campaign.name}</h1>
+        <p className="text-[12.5px] md:text-[14px] text-ink-2 mt-1 md:mt-1.5">
           {CAMPAIGN_TYPE_LABELS[campaign.campaignType as CampaignType] ?? campaign.campaignType} ·{" "}
           {campaign.startDate} → {campaign.endDate}
         </p>
