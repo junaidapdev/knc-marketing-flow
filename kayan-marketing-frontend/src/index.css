@@ -1,0 +1,352 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- Theme tokens ---------- */
+:root {
+  /* Surfaces */
+  --c-cream: #fbf6e9;
+  --c-cream-2: #f4edd8;
+  --c-paper: #ffffff;
+  --c-warmbg: #f7f1dd;
+
+  /* Text */
+  --c-ink: #1c1c1c;
+  --c-ink-2: #4a4a48;
+  --c-ink-3: #8c8b85;
+
+  /* Yellow tints (the brand yellow itself stays in tailwind config; these are surface tints) */
+  --c-yellow-soft: #ffe694;
+  --c-yellow-bg: #fff6d6;
+
+  /* Lines */
+  --c-line: rgba(14, 14, 14, 0.08);
+  --c-line-2: rgba(14, 14, 14, 0.14);
+
+  /* Body bg behind the app shell */
+  --c-body: #2a2622;
+
+  color-scheme: light;
+}
+
+.dark {
+  /* Surfaces — warm coffee palette, not cold grey. Stays editorial. */
+  --c-cream: #1a1612; /* sidebar */
+  --c-cream-2: #2a241d; /* chip default + hovers */
+  --c-paper: #221c16; /* card surface */
+  --c-warmbg: #15110d; /* outer page bg / login */
+
+  /* Text */
+  --c-ink: #f4edd8;
+  --c-ink-2: #c8c0ab;
+  --c-ink-3: #807868;
+
+  /* Yellow tints — deep warm versions. The "today" highlight reads as a warm
+     amber wash instead of the bright pastel from light mode. */
+  --c-yellow-soft: #3a2e10;
+  --c-yellow-bg: #2d2415;
+
+  /* Lines — flip the rgba base color from obsidian to cream so they show on
+     dark surfaces without being too loud. */
+  --c-line: rgba(244, 237, 216, 0.08);
+  --c-line-2: rgba(244, 237, 216, 0.14);
+
+  --c-body: #100c08;
+
+  color-scheme: dark;
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    background: var(--c-body);
+    color: var(--c-ink);
+    font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition:
+      background-color 200ms ease,
+      color 200ms ease;
+  }
+  #root {
+    min-height: 100%;
+  }
+}
+
+@layer components {
+  /* Editorial headings render in Space Grotesk — geometric, slightly
+     industrial. The `em` italic emphasis pattern still works because Space
+     Grotesk has true italics across the variable weight range. */
+  .h-display {
+    @apply font-serif font-semibold tracking-tight text-ink;
+  }
+  .h-display em {
+    @apply not-italic text-ink-2;
+  }
+  .h-greeting {
+    @apply font-serif text-[30px] leading-[1.15] tracking-tight font-semibold text-ink;
+  }
+  .h-greeting em {
+    font-style: italic;
+    font-weight: 500;
+    @apply text-ink-2;
+  }
+  .h-card {
+    @apply font-serif text-[17px] font-semibold tracking-tight text-ink;
+  }
+  .h-card-sm {
+    @apply font-serif text-[14px] font-semibold text-ink;
+  }
+  .eyebrow {
+    @apply text-[10.5px] uppercase tracking-[0.14em] text-ink-3 font-semibold;
+  }
+
+  /* Pill buttons */
+  .btn {
+    @apply inline-flex items-center gap-2 px-4 py-[9px] rounded-full text-[13px] font-semibold transition;
+  }
+  .btn-primary {
+    @apply bg-obsidian text-yellow hover:brightness-110;
+  }
+  .btn-yellow {
+    @apply bg-yellow text-obsidian hover:bg-[#FFC700];
+  }
+  .btn-ghost {
+    @apply bg-transparent text-ink-2 border border-line-2 hover:bg-cream-2;
+  }
+
+  /* Square icon button */
+  .iconbtn {
+    @apply inline-grid place-items-center w-[38px] h-[38px] rounded-[12px] bg-cream-2 text-ink-2 transition hover:bg-yellow-soft hover:text-ink;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-paper border border-line rounded-lg p-[22px];
+  }
+  .card-cream {
+    @apply bg-cream;
+  }
+  .card-yellow-bg {
+    @apply bg-yellow-bg;
+  }
+
+  /* Pill chips */
+  .chip {
+    @apply inline-flex items-center gap-1.5 px-[9px] py-[3px] rounded-full text-[11px] font-semibold whitespace-nowrap;
+  }
+  .chip-default {
+    @apply bg-cream-2 text-ink-2;
+  }
+  .chip-tiktok {
+    @apply bg-[#1C1C1C] text-white;
+  }
+  .chip-ig {
+    @apply bg-peach text-[#7A3520];
+  }
+  .chip-snap {
+    @apply bg-yellow text-obsidian;
+  }
+  .chip-shop {
+    @apply bg-sage text-[#2C5530];
+  }
+  .chip-influencer {
+    @apply bg-lavender text-[#4A3A6A];
+  }
+  .chip-offer {
+    @apply bg-rose text-[#6E2A35];
+  }
+  .chip-general {
+    @apply bg-sky text-[#2C4A66];
+  }
+  .chip-event {
+    @apply bg-butter text-[#6B4A0F];
+  }
+  .status-planned {
+    @apply bg-cream-2 text-ink-2;
+  }
+  .status-active {
+    @apply bg-sage text-[#2C5530];
+  }
+  .status-done {
+    @apply bg-obsidian text-yellow;
+  }
+  .status-overdue {
+    @apply bg-rose text-[#6E2A35];
+  }
+
+  /* Pill tab group */
+  .tab-group {
+    @apply inline-flex gap-1 bg-cream-2 p-1 rounded-full;
+  }
+  .tab {
+    @apply px-4 py-[7px] rounded-full text-[12.5px] font-semibold text-ink-2 cursor-pointer;
+  }
+  .tab-active {
+    @apply bg-obsidian text-yellow;
+  }
+
+  /* Search input */
+  .search-bar {
+    @apply flex items-center gap-2 bg-cream-2 rounded-full px-4 py-[9px] w-[280px] text-[13px] text-ink-3 border border-transparent;
+  }
+  .search-bar input {
+    @apply flex-1 bg-transparent border-0 outline-none text-[13px] text-ink placeholder:text-ink-3;
+  }
+
+  /* Keyboard hint */
+  .kbd {
+    @apply font-mono text-[11px] bg-cream-2 border border-line rounded px-[5px] py-px text-ink-2;
+  }
+
+  /* Progress bar */
+  .progress {
+    @apply h-1.5 rounded-full bg-cream-2 overflow-hidden;
+  }
+  .progress-fill {
+    @apply h-full rounded-full;
+  }
+
+  /* Custom checkbox button */
+  .check-btn {
+    @apply w-5 h-5 rounded-[7px] border-[1.5px] border-line-2 bg-paper grid place-items-center transition cursor-pointer hover:border-ink;
+  }
+  .check-btn-done {
+    @apply bg-obsidian border-obsidian;
+  }
+
+  /* Field label */
+  .field-label {
+    @apply block text-[12px] font-medium text-ink-2 mb-1.5;
+  }
+
+  /* Native form fields styled to match */
+  .form-input,
+  .form-select,
+  .form-textarea {
+    @apply w-full bg-paper border border-line-2 rounded-md px-3 py-2 text-[13px] text-ink placeholder:text-ink-3 outline-none transition focus:border-ink focus:bg-paper;
+  }
+  .form-select {
+    @apply pr-8 appearance-none bg-paper;
+  }
+
+  /* Sidebar nav item */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[13.5px] font-medium text-ink-2 cursor-pointer transition w-full text-left hover:bg-[rgba(14,14,14,0.04)];
+  }
+  .nav-item-active {
+    @apply bg-obsidian text-cream;
+  }
+  .nav-item-active .nav-icon {
+    @apply text-yellow;
+  }
+  .nav-icon {
+    @apply w-[18px] h-[18px] grid place-items-center flex-shrink-0;
+  }
+  .nav-badge {
+    @apply ml-auto bg-yellow text-obsidian text-[10px] font-bold px-1.5 py-px rounded-md min-w-[18px] text-center;
+  }
+
+  /* Day cell hover */
+  .day-cell {
+    @apply transition-colors cursor-pointer;
+  }
+  .day-cell:hover {
+    @apply bg-cream;
+  }
+}
+
+/* ---------- Dark-mode tweaks ---------- */
+/* Strong "primary" surfaces (button, active nav, active tab, done chip)
+   are dark-on-light in light mode. In dark mode the dark bg disappears
+   into the canvas, so we flip them to yellow + obsidian-text — keeps the
+   active state loud without losing the brand accent. */
+.dark .btn-primary {
+  background-color: #ffd23f;
+  color: #0e0e0e;
+}
+.dark .btn-primary:hover {
+  background-color: #ffc700;
+  filter: none;
+}
+.dark .nav-item-active {
+  background-color: #ffd23f;
+  color: #0e0e0e;
+}
+.dark .nav-item-active .nav-icon {
+  color: #0e0e0e;
+}
+.dark .tab-active {
+  background-color: #ffd23f;
+  color: #0e0e0e;
+}
+.dark .status-done {
+  background-color: #ffd23f;
+  color: #0e0e0e;
+}
+.dark .nav-item:hover {
+  background-color: rgba(244, 237, 216, 0.05);
+}
+
+/* Hovering an already-active nav item: the base .nav-item:hover overlay
+   would wash the strong bg out and leave the high-contrast text invisible.
+   Lock the active state's hover so it stays loud and just lifts slightly. */
+.nav-item-active:hover {
+  background-color: #0e0e0e;
+  color: #fbf6e9;
+  filter: brightness(1.1);
+}
+.dark .nav-item-active:hover {
+  background-color: #ffd23f;
+  color: #0e0e0e;
+  filter: brightness(1.05);
+}
+
+/* Pastel chips read as bright "stickers" on either canvas. The dark text
+   on light pastel bg keeps contrast in dark mode too — no override needed. */
+
+/* Modal / panel backdrops use rgba(14,14,14,…) explicitly so they stay a
+   warm dark veil in both modes. */
+
+/* Cream-paper scrollbar */
+.canvas-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.canvas-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.canvas-scroll::-webkit-scrollbar-thumb {
+  background: rgba(14, 14, 14, 0.12);
+  border-radius: 9999px;
+  border: 2px solid var(--c-paper);
+}
+.dark .canvas-scroll::-webkit-scrollbar-thumb {
+  background: rgba(244, 237, 216, 0.14);
+}
+
+/* AI floating button pulse */
+@keyframes ai-pulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.4;
+  }
+  70% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.ai-fab-pulse {
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  border: 1.5px solid #ffd23f;
+  opacity: 0.4;
+  animation: ai-pulse 2.4s ease-out infinite;
+  pointer-events: none;
+}

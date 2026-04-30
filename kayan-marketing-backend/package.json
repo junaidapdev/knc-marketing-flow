@@ -1,0 +1,27 @@
+{
+  "name": "kayan-marketing-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "db:reset": "supabase db reset",
+    "db:push": "supabase db push",
+    "db:seed": "psql $DATABASE_URL -f supabase/seed/seed.sql",
+    "db:types": "supabase gen types typescript --local > src/types/database.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.5.0",
+    "eslint": "^9.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "prettier": "^3.3.0"
+  }
+}

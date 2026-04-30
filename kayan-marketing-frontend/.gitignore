@@ -1,0 +1,22 @@
+node_modules/
+dist/
+dist-ssr
+*.tsbuildinfo
+.tsbuild/
+.env
+.env.local
+.env.*.local
+*.local
+.DS_Store
+.cursor/
+*.log
+.vscode/*
+!.vscode/extensions.json
+.idea/
+# Scratch markdown
+CrossFix.md
+DeploymentFix.md
+TempNotes.md
+NOTES.md
+SCRATCH.md
+.notes/

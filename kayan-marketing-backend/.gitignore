@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+.DS_Store
+.cursor/
+*.log
+# Scratch markdown files — never commit
+CrossFix.md
+DeploymentFix.md
+TempNotes.md
+NOTES.md
+SCRATCH.md
+.notes/
