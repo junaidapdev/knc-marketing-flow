@@ -68,7 +68,7 @@ export default function CalendarPage(): JSX.Element {
           <h1 className="h-greeting text-[24px] md:text-[30px]">
             Editorial <em>calendar</em>
           </h1>
-          <p className="text-[13px] md:text-[14px] text-ink-2 mt-1 md:mt-1.5">{headerLabel}</p>
+          <p className="font-serif text-[20px] md:text-[24px] font-semibold tracking-tight text-ink mt-1.5 md:mt-2">{headerLabel}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 md:gap-2.5">

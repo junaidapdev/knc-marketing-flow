@@ -9,6 +9,7 @@ import { DayTypeBanner } from "../features/today/DayTypeBanner";
 import { DailyDocket } from "../features/today/DailyDocket";
 import { ThreeDayRadar } from "../features/today/ThreeDayRadar";
 import { BudgetSnapshot } from "../features/today/BudgetSnapshot";
+import { MonthProgress } from "../features/today/MonthProgress";
 import { AddEntryModal } from "../features/calendar/AddEntryModal";
 import { QuickAddTaskModal } from "../features/tasks/QuickAddTaskModal";
 import { EntryDetailPanel } from "../features/calendar/EntryDetailPanel";
@@ -106,6 +107,8 @@ export default function TodayPage(): JSX.Element {
       {summary.data && (
         <>
           <DayTypeBanner tasks={summary.data.today.tasks} />
+
+          <MonthProgress onOpenEntry={setOpenEntryId} />
 
           <OverdueAlertStrip count={summary.data.overdue.count} />
 
