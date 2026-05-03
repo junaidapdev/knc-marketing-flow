@@ -55,6 +55,7 @@ import {
   showsHashtagsField,
 } from "./content-helpers";
 import { PROMPT_TEMPLATES, type PromptTemplate } from "../../constants/ai";
+import { PATTERN_BY_ID, type PatternId } from "../../constants/patterns";
 import { isAIEnabled } from "../../config/env";
 import { RenderedMarkdown } from "./RenderedMarkdown";
 import { apiRequest } from "../../utils/api-client";
@@ -1082,6 +1083,10 @@ function ContentCard({
   );
 }
 
+// buildPrompt now takes the full entry so the script field can produce a
+// pattern-aware brief. caption/hashtags don't currently differentiate, but
+// they receive the entry for symmetry — the system prompt does the heavy
+// lifting; the user message is just the brief.
 const META_FOR_FIELD: Record<
   ContentField,
   {
@@ -1090,7 +1095,7 @@ const META_FOR_FIELD: Record<
     placeholder: string;
     rows: number;
     template: PromptTemplate;
-    buildPrompt: (title: string) => string;
+    buildPrompt: (entry: EntryWithTasks) => string;
     limitHint: string;
     supportsLangTabs: boolean;
   }
@@ -1101,8 +1106,19 @@ const META_FOR_FIELD: Record<
     placeholder: "Hook, body, CTA. Add shot directions in [brackets].",
     rows: 8,
     template: PROMPT_TEMPLATES.GENERATE_SCRIPT,
-    buildPrompt: (title) =>
-      `Generate a full TikTok-style script for this entry: "${title}". Include hook, body, CTA, with shot directions.`,
+    buildPrompt: (entry) => {
+      // Pattern-aware brief: when a pattern is set on the entry, name the
+      // pattern in the brief so the LLM (which already has the pattern
+      // structure in BRAND DNA + the script-brief block) anchors fast.
+      // Without a pattern, fall back to the generic prompt.
+      if (entry.patternId) {
+        const patternName = PATTERN_BY_ID[entry.patternId as PatternId]?.name ?? entry.patternId;
+        const themeBit = entry.theme ? ` Focus on ${entry.theme}.` : "";
+        const branchBit = entry.branch?.name ? ` Feature ${entry.branch.name} in the CTA.` : "";
+        return `Generate a ${patternName} script for: "${entry.title}".${themeBit}${branchBit}`;
+      }
+      return `Generate a full TikTok-style script for this entry: "${entry.title}". Include hook, body, CTA, with shot directions.`;
+    },
     limitHint: "Most TikTok scripts work best under 4,000 chars.",
     supportsLangTabs: true,
   },
@@ -1112,8 +1128,8 @@ const META_FOR_FIELD: Record<
     placeholder: "The publishing caption — bilingual (Arabic + English) reads best.",
     rows: 4,
     template: PROMPT_TEMPLATES.CAPTION_HASHTAGS,
-    buildPrompt: (title) =>
-      `Write a publishing caption and hashtag set for this entry: "${title}".`,
+    buildPrompt: (entry) =>
+      `Write a publishing caption and hashtag set for this entry: "${entry.title}".`,
     limitHint: "Instagram truncates captions over 1,500 chars in feed.",
     supportsLangTabs: true,
   },
@@ -1123,8 +1139,8 @@ const META_FOR_FIELD: Record<
     placeholder: "#KayanSweets #حلويات_كيان",
     rows: 2,
     template: PROMPT_TEMPLATES.CAPTION_HASHTAGS,
-    buildPrompt: (title) =>
-      `Write a hashtag set (and caption if helpful) for this entry: "${title}".`,
+    buildPrompt: (entry) =>
+      `Write a hashtag set (and caption if helpful) for this entry: "${entry.title}".`,
     limitHint: "Instagram allows up to 30 hashtags per post.",
     supportsLangTabs: false,
   },
@@ -1214,6 +1230,19 @@ function ExpandedCardBody({
     setGenerateError(null);
     setGenerating(true);
     try {
+      // Build the per-call entryContext sent alongside the user message.
+      // Each field is optional — undefined ones are dropped from the body so
+      // the backend Zod schema (.strict()) doesn't reject them. The backend
+      // omits any line whose source field is missing.
+      // Note: `occasion` will come from the entry in Chunk 4 (not on the
+      // entry yet), so we leave it undefined.
+      const entryContext = {
+        patternId: entry.patternId ?? undefined,
+        branchName: entry.branch?.name ?? undefined,
+        theme: entry.theme ?? undefined,
+        entryType: entry.type,
+      };
+
       const result = await apiRequest<{
         conversationId: string;
         assistantMessage: string;
@@ -1224,7 +1253,8 @@ function ExpandedCardBody({
           contextType: "entry",
           contextId: entry.id,
           promptTemplate: meta.template,
-          userMessage: meta.buildPrompt(entry.title),
+          userMessage: meta.buildPrompt(entry),
+          entryContext,
         },
       });
       if (!result.success) throw new Error(result.error.message);
