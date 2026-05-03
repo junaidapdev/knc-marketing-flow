@@ -57,6 +57,7 @@ import {
 import { PROMPT_TEMPLATES, type PromptTemplate } from "../../constants/ai";
 import { isAIEnabled } from "../../config/env";
 import { RenderedMarkdown } from "./RenderedMarkdown";
+import { apiRequest } from "../../utils/api-client";
 
 const STATUS_VALUES: EntryStatus[] = ["planned", "in_progress", "live", "done", "cancelled"];
 
@@ -1148,7 +1149,6 @@ function ExpandedCardBody({
 }: ExpandedBodyProps): JSX.Element {
   const meta = META_FOR_FIELD[field];
   const updateEntry = useUpdateEntry();
-  const triggerInlineGenerate = useAIStore((s) => s.triggerInlineGenerate);
 
   // Local working copy — committed back via onBlur. Resyncs if the entry
   // value changes underneath us (e.g. AI panel saved into the field).
@@ -1158,6 +1158,8 @@ function ExpandedCardBody({
   const [savedFlash, setSavedFlash] = useState(false);
   const [copied, setCopied] = useState(false);
   const [lang, setLang] = useState<LangTab>("both");
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -1201,8 +1203,49 @@ function ExpandedCardBody({
     }
   };
 
-  const onGenerate = (): void => {
-    triggerInlineGenerate(meta.template, meta.buildPrompt(entry.title));
+  const onGenerate = async (): Promise<void> => {
+    if (generating) return;
+    if (draft.trim().length > 0) {
+      const ok = window.confirm(
+        `Replace the current ${meta.label.toLowerCase()} with AI-generated text?`,
+      );
+      if (!ok) return;
+    }
+    setGenerateError(null);
+    setGenerating(true);
+    try {
+      const result = await apiRequest<{
+        conversationId: string;
+        assistantMessage: string;
+      }>("/ai-assistant", {
+        method: "POST",
+        body: {
+          conversationId: null,
+          contextType: "entry",
+          contextId: entry.id,
+          promptTemplate: meta.template,
+          userMessage: meta.buildPrompt(entry.title),
+        },
+      });
+      if (!result.success) throw new Error(result.error.message);
+      const generated = result.data.assistantMessage;
+      // Optimistic local update + persist
+      setDraft(generated);
+      lastSavedRef.current = generated;
+      setEditing(false);
+      await updateEntry.mutateAsync({
+        id: entry.id,
+        input: { [field]: generated },
+      });
+      setSavedFlash(true);
+      window.setTimeout(() => setSavedFlash(false), 1500);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Generation failed";
+      setGenerateError(message);
+      logger.error("inline generation failed", { err: String(err), field });
+    } finally {
+      setGenerating(false);
+    }
   };
 
   // For Script + Caption: try to split into Arabic / English sections from
@@ -1274,11 +1317,12 @@ function ExpandedCardBody({
             <button
               type="button"
               onClick={onGenerate}
-              className="flex items-center gap-1 px-2 py-1 rounded-full bg-obsidian text-yellow text-[11px] font-semibold hover:brightness-110"
+              disabled={generating}
+              className="flex items-center gap-1 px-2 py-1 rounded-full bg-obsidian text-yellow text-[11px] font-semibold hover:brightness-110 disabled:opacity-60 disabled:cursor-wait"
               title="Generate with AI"
             >
-              <Sparkles size={11} />
-              Generate
+              <Sparkles size={11} className={generating ? "animate-pulse" : ""} />
+              {generating ? "Generating…" : "Generate"}
             </button>
           )}
           <button
@@ -1321,6 +1365,12 @@ function ExpandedCardBody({
 
       {(nearLimit(draft, field) || overLimit(draft, field)) && (
         <div className="text-[11px] text-ink-3 italic">{meta.limitHint}</div>
+      )}
+
+      {generateError && (
+        <div className="text-[11.5px] text-rose-deep bg-rose/30 border border-rose-deep/30 rounded-md px-2.5 py-1.5">
+          Generation failed: {generateError}
+        </div>
       )}
     </div>
   );
