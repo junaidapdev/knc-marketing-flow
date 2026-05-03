@@ -55,7 +55,7 @@ import {
   showsHashtagsField,
 } from "./content-helpers";
 import { PROMPT_TEMPLATES, type PromptTemplate } from "../../constants/ai";
-import { PATTERN_BY_ID, type PatternId } from "../../constants/patterns";
+import { PATTERNS, PATTERN_BY_ID, type PatternId } from "../../constants/patterns";
 import { isAIEnabled } from "../../config/env";
 import { RenderedMarkdown } from "./RenderedMarkdown";
 import { apiRequest } from "../../utils/api-client";
@@ -256,6 +256,14 @@ function ModalHeader({
         <span className="text-[10.5px] px-2 py-0.5 rounded-full bg-cream-2 text-ink-2 truncate">
           {ENTRY_TYPE_LABELS[entry.type as EntryType] ?? entry.type}
         </span>
+        {entry.patternId && (
+          <span
+            className="text-[10.5px] px-2 py-0.5 rounded-full bg-yellow text-obsidian font-bold tracking-wide flex-shrink-0"
+            title={`Pattern: ${PATTERN_BY_ID[entry.patternId as PatternId]?.name ?? entry.patternId}`}
+          >
+            {entry.patternId}
+          </span>
+        )}
         {focused && (
           <span className="text-[10.5px] px-2 py-0.5 rounded-full bg-yellow-bg text-ink-2">
             Focus mode
@@ -372,6 +380,12 @@ function LeftRail({ entry }: { entry: EntryWithTasks }): JSX.Element {
           <span className="text-[12.5px] text-ink">
             {ENTRY_TYPE_LABELS[entry.type as EntryType] ?? entry.type}
           </span>
+        </RailRow>
+        <RailRow icon={<Sparkles size={13} />} label="Pattern">
+          <PatternProperty entryId={entry.id} initial={entry.patternId} />
+        </RailRow>
+        <RailRow icon={<FileText size={13} />} label="Theme">
+          <ThemeProperty entryId={entry.id} initial={entry.theme} />
         </RailRow>
         <RailRow icon={<Circle size={13} />} label="Status">
           <StatusProperty entryId={entry.id} initial={entry.status} />
@@ -847,6 +861,101 @@ function EditorOffsetProperty({
       onChange={(e) => setValue(e.target.value)}
       onBlur={save}
       className="w-12 bg-transparent border-none text-[12.5px] text-ink hover:bg-cream-2/60 rounded-sm px-1.5 -ml-1.5 py-0.5 focus:ring-0 focus:outline-none"
+    />
+  );
+}
+
+function PatternProperty({
+  entryId,
+  initial,
+}: {
+  entryId: string;
+  initial: PatternId | null;
+}): JSX.Element {
+  const updateEntry = useUpdateEntry();
+  // Local copy so the select reflects the pending value while the PATCH is
+  // in flight (avoids a flash back to the old value).
+  const [value, setValue] = useState<PatternId | "">(initial ?? "");
+
+  useEffect(() => {
+    setValue(initial ?? "");
+  }, [initial]);
+
+  const onChange = async (next: PatternId | ""): Promise<void> => {
+    setValue(next);
+    if ((next || null) === initial) return;
+    try {
+      await updateEntry.mutateAsync({
+        id: entryId,
+        // Empty string from "None" maps to null on the wire — clears the field.
+        input: { patternId: next === "" ? null : next },
+      });
+    } catch (err) {
+      logger.error("save pattern failed", { err: String(err) });
+    }
+  };
+
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as PatternId | "")}
+      className="bg-transparent border-none text-[12.5px] text-ink hover:bg-cream-2/60 rounded-sm px-1.5 -ml-1.5 py-0.5 cursor-pointer focus:ring-0 focus:outline-none max-w-full"
+    >
+      <option value="">None</option>
+      {PATTERNS.map((p) => (
+        <option key={p.id} value={p.id}>
+          {p.id} — {p.name}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function ThemeProperty({
+  entryId,
+  initial,
+}: {
+  entryId: string;
+  initial: string | null;
+}): JSX.Element {
+  const updateEntry = useUpdateEntry();
+  const [value, setValue] = useState(initial ?? "");
+  const lastSavedRef = useRef(initial ?? "");
+
+  useEffect(() => {
+    setValue(initial ?? "");
+    lastSavedRef.current = initial ?? "";
+  }, [initial]);
+
+  const save = async (): Promise<void> => {
+    const next = value.trim();
+    if (next === lastSavedRef.current) return;
+    try {
+      await updateEntry.mutateAsync({
+        id: entryId,
+        // Empty string clears the field; non-empty saves the trimmed value.
+        input: { theme: next.length === 0 ? null : next },
+      });
+      lastSavedRef.current = next;
+    } catch (err) {
+      logger.error("save theme failed", { err: String(err) });
+    }
+  };
+
+  return (
+    <input
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+      placeholder="e.g., Japanese cake new flavors"
+      maxLength={200}
+      className="w-full bg-transparent border-none text-[12.5px] text-ink placeholder:text-ink-3/70 placeholder:italic hover:bg-cream-2/60 rounded-sm px-1.5 -ml-1.5 py-0.5 focus:ring-0 focus:outline-none"
     />
   );
 }

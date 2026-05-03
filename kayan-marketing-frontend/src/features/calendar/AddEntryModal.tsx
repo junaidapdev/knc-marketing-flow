@@ -23,6 +23,7 @@ import {
 } from "../../constants/budget-categories";
 import { useCreateEntry } from "./hooks/use-calendar-entries";
 import { BranchSelector } from "../branches/BranchSelector";
+import { PATTERNS, type PatternId } from "../../constants/patterns";
 import { logger } from "../../utils/logger";
 
 const ENTRY_TYPE_VALUES = Object.values(ENTRY_TYPES) as [EntryType, ...EntryType[]];
@@ -52,6 +53,10 @@ const formSchema = z
     productionMode: z.enum(PRODUCTION_MODES),
     shootDate: z.string().optional(),
     editorDaysOffset: z.coerce.number().int().min(0).max(30),
+    // Recipe Book V2 tagging — both optional. Empty string in the form maps
+    // to null on the wire (clears the field).
+    patternId: z.string().regex(/^P\d{1,2}$/).or(z.literal("")).optional(),
+    theme: z.string().max(200).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === ENTRY_TYPES.SHOP_ACTIVITY && !data.branchId) {
@@ -121,6 +126,8 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
       productionMode: "batch",
       shootDate: "",
       editorDaysOffset: 2,
+      patternId: "",
+      theme: "",
     },
   });
 
@@ -144,6 +151,8 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
         productionMode: "batch",
         shootDate: "",
         editorDaysOffset: 2,
+        patternId: "",
+        theme: "",
       });
       setAssigneeOverrides({});
     }
@@ -255,6 +264,9 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
         taskChainOverride:
           input.autoCreateTasks && hasOverrides ? previewWithOverrides : undefined,
         productionMode: input.productionMode,
+        // Recipe Book V2 tagging — empty string from the form maps to null.
+        patternId: input.patternId ? (input.patternId as PatternId) : null,
+        theme: input.theme?.trim() ? input.theme.trim() : null,
         // Only send a shoot date when it's a batch-mode video entry — for
         // ad-hoc or non-batchable types the field is meaningless.
         shootDate: isBatchSubmit && input.shootDate ? input.shootDate : null,
@@ -452,6 +464,33 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
               </div>
             </div>
           )}
+
+          {/* Recipe Book V2 tagging — both optional. Setting these on
+              creation means the very first ✨ Generate produces an
+              on-pattern, on-theme script. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="field-label">Pattern</label>
+              <select {...register("patternId")} className="form-select">
+                <option value="">— none —</option>
+                {PATTERNS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.id} — {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Theme</label>
+              <input
+                type="text"
+                placeholder="e.g., Japanese cake new flavors"
+                maxLength={200}
+                {...register("theme")}
+                className="form-input"
+              />
+            </div>
+          </div>
 
           <div>
             <label className="field-label">Description</label>

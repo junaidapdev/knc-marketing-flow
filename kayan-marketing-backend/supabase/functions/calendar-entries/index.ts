@@ -61,6 +61,17 @@ const PRODUCTION_MODES = ["batch", "adhoc"] as const;
 // chains regardless of production_mode.
 const BATCHABLE_TYPES = new Set(["tiktok_video", "instagram_reel"]);
 
+// Pattern ids live in code (kayan-marketing-frontend/src/constants/patterns.ts
+// + backend mirror). The schema validates shape only — anything matching
+// /^P\d{1,2}$/ is accepted so we don't need to ship a function update every
+// time a new pattern is added to the constants file.
+const patternIdSchema = z
+  .string()
+  .regex(/^P\d{1,2}$/, "Pattern id like P1, P9")
+  .nullable()
+  .optional();
+const themeSchema = z.string().max(200).nullable().optional();
+
 const createSchema = z
   .object({
     brandId: z.string().uuid(),
@@ -78,6 +89,10 @@ const createSchema = z
     productionMode: z.enum(PRODUCTION_MODES).default("batch"),
     shootDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
     editorDaysOffset: z.number().int().min(0).max(30).default(2),
+    // Recipe Book V2 tagging — both optional. AI generation flow reads these
+    // to produce on-pattern, on-theme scripts (see ai-assistant chunk 3).
+    patternId: patternIdSchema,
+    theme: themeSchema,
     taskChainOverride: z
       .array(
         z.object({
@@ -132,6 +147,9 @@ const updateSchema = z.object({
   productionMode: z.enum(PRODUCTION_MODES).optional(),
   shootDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   editorDaysOffset: z.number().int().min(0).max(30).optional(),
+  // Recipe Book V2 tagging — see migration 0029. Send `null` to clear.
+  patternId: patternIdSchema,
+  theme: themeSchema,
 });
 
 function addDays(dateStr: string, days: number): string {
@@ -304,6 +322,12 @@ Deno.serve(async (req) => {
       p_shoot_date: parsed.data.shootDate ?? null,
       p_production_mode: parsed.data.productionMode,
       p_editor_days_offset: parsed.data.editorDaysOffset,
+      // Recipe Book V2 tagging — pass null when not supplied (RPC defaults
+      // to null but being explicit avoids any positional/named-arg ambiguity).
+      // p_source_topic_id is left to the RPC's default (null); the topic-queue
+      // conversion flow (chunk 5) is the only path that supplies it.
+      p_pattern_id: parsed.data.patternId ?? null,
+      p_theme: parsed.data.theme ?? null,
     });
 
     if (error) return jsonError("INTERNAL_ERROR", error.message, 500);
@@ -342,6 +366,10 @@ Deno.serve(async (req) => {
     if (parsed.data.productionMode !== undefined) dbInput.production_mode = parsed.data.productionMode;
     if (parsed.data.shootDate !== undefined) dbInput.shoot_date = parsed.data.shootDate;
     if (parsed.data.editorDaysOffset !== undefined) dbInput.editor_days_offset = parsed.data.editorDaysOffset;
+    // null clears the field (e.g. picking "None" from the Pattern dropdown);
+    // undefined leaves the existing DB value alone (the field wasn't sent).
+    if (parsed.data.patternId !== undefined) dbInput.pattern_id = parsed.data.patternId;
+    if (parsed.data.theme !== undefined) dbInput.theme = parsed.data.theme;
 
     const { data, error } = await db
       .from("calendar_entries")

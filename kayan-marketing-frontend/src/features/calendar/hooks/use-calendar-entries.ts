@@ -6,6 +6,7 @@ import type { EntryStatus } from "../../../types/calendar-entry";
 import type { Assignee, PreviewTask } from "../../../constants/task-chains";
 import type { EntryType } from "../../../constants/entry-types";
 import type { BudgetCategory } from "../../../constants/budget-categories";
+import type { PatternId } from "../../../constants/patterns";
 import { logger } from "../../../utils/logger";
 
 const ENTRIES_KEY = ["calendar-entries"] as const;
@@ -65,6 +66,10 @@ export interface CreateEntryInput {
   productionMode?: "batch" | "adhoc";
   shootDate?: string | null;
   editorDaysOffset?: number;
+  // Recipe Book V2 tagging (chunk 4). Both optional. The AI Generate flow
+  // reads these on the saved entry and feeds them into the prompt brief.
+  patternId?: PatternId | null;
+  theme?: string | null;
 }
 
 export interface CreateEntryResult {
@@ -109,6 +114,10 @@ export interface UpdateEntryInput {
   productionMode?: "batch" | "adhoc";
   shootDate?: string | null;
   editorDaysOffset?: number;
+  // Recipe Book V2 tagging (chunk 4). null clears the field; undefined
+  // leaves the existing DB value alone.
+  patternId?: PatternId | null;
+  theme?: string | null;
 }
 
 export function useUpdateEntry() {
