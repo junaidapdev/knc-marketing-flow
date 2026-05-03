@@ -1226,9 +1226,9 @@ function ExpandedCardBody({
 
   return (
     <div className="px-3.5 pb-3.5 space-y-2.5">
-      {/* Action row inside expanded body */}
-      <div className="flex items-center justify-between gap-2 pt-1">
-        <div className="flex items-center gap-1.5">
+      {/* Action row inside expanded body — wraps on narrow widths */}
+      <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {showLangTabs && (
             <div className="flex items-center bg-paper border border-line rounded-full p-0.5">
               {(
@@ -1259,21 +1259,22 @@ function ExpandedCardBody({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
             onClick={onCopy}
             disabled={!draft.trim()}
-            className="flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink disabled:opacity-40 disabled:cursor-not-allowed px-1.5 py-0.5"
+            className="flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink disabled:opacity-40 disabled:cursor-not-allowed px-1.5 py-1"
+            aria-label={copied ? "Copied" : "Copy"}
           >
             <Copy size={11} />
-            {copied ? "Copied" : "Copy"}
+            <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
           </button>
           {isAIEnabled && (
             <button
               type="button"
               onClick={onGenerate}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-obsidian text-yellow text-[11px] font-semibold hover:brightness-110"
+              className="flex items-center gap-1 px-2 py-1 rounded-full bg-obsidian text-yellow text-[11px] font-semibold hover:brightness-110"
               title="Generate with AI"
             >
               <Sparkles size={11} />
@@ -1283,7 +1284,7 @@ function ExpandedCardBody({
           <button
             type="button"
             onClick={onEnterFocus}
-            className="iconbtn"
+            className="grid place-items-center w-7 h-7 rounded-full text-ink-2 hover:bg-cream-2 hover:text-ink transition"
             title="Focus mode"
             aria-label="Focus mode"
           >
@@ -1302,12 +1303,12 @@ function ExpandedCardBody({
           onBlur={save}
           rows={meta.rows}
           placeholder={meta.placeholder}
-          className="w-full bg-paper border border-line rounded-md p-3 text-[13px] leading-relaxed text-ink placeholder:text-ink-3/70 placeholder:italic resize-y focus:ring-2 focus:ring-yellow focus:outline-none"
+          className="w-full bg-paper border border-line rounded-md p-2.5 sm:p-3 text-[16px] sm:text-[13px] leading-relaxed text-ink placeholder:text-ink-3/70 placeholder:italic resize-y focus:ring-2 focus:ring-yellow focus:outline-none min-h-[140px] sm:min-h-0"
         />
       ) : (
         <button
           onClick={enterEditMode}
-          className="text-left w-full bg-paper border border-line rounded-md p-3 hover:border-ink-3 transition-colors"
+          className="text-left w-full bg-paper border border-line rounded-md p-2.5 sm:p-3 hover:border-ink-3 transition-colors"
           title="Click to edit"
         >
           {draft.trim().length > 0 ? (
