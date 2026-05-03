@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { addMonths, subMonths, addWeeks, subWeeks, format, startOfWeek, endOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus, ListChecks } from "lucide-react";
@@ -13,6 +13,10 @@ import { CalendarSidebar } from "../features/calendar/CalendarSidebar";
 type ViewMode = "monthly" | "weekly";
 
 const BRANCH_PARAM = "branchId";
+// External pages (Topics → "Use this") deep-link into the calendar with this
+// param so the matching entry's detail panel opens on landing. We consume +
+// strip it from the URL so a refresh doesn't keep re-popping the panel.
+const ENTRY_PARAM = "entryId";
 
 export default function CalendarPage(): JSX.Element {
   const { brandId } = useCurrentBrand();
@@ -24,6 +28,22 @@ export default function CalendarPage(): JSX.Element {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const branchFilter = searchParams.get(BRANCH_PARAM);
+
+  // Open the entry detail panel when ?entryId=… is present, then strip the
+  // param so refreshes don't re-trigger and don't pollute the URL.
+  useEffect(() => {
+    const requested = searchParams.get(ENTRY_PARAM);
+    if (!requested) return;
+    setOpenEntryId(requested);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.delete(ENTRY_PARAM);
+        return params;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
 
   const setBranchFilter = useCallback(
     (next: string) => {

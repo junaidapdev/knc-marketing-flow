@@ -7,6 +7,7 @@ import { ROUTES } from "./constants/routes";
 import LoginPage from "./pages/Login";
 import TodayPage from "./pages/Today";
 import CalendarPage from "./pages/Calendar";
+import TopicsPage from "./pages/Topics";
 import CampaignsPage from "./pages/Campaigns";
 import CampaignDetailPage from "./pages/CampaignDetail";
 import PerformancePage from "./pages/Performance";
@@ -34,6 +35,7 @@ function AppRoutes(): JSX.Element {
       >
         <Route path={ROUTES.TODAY} element={<TodayPage />} />
         <Route path={ROUTES.CALENDAR} element={<CalendarPage />} />
+        <Route path={ROUTES.TOPICS} element={<TopicsPage />} />
         <Route path={ROUTES.CAMPAIGNS} element={<CampaignsPage />} />
         <Route path="/campaigns/:id" element={<CampaignDetailPage />} />
         <Route path={ROUTES.PERFORMANCE} element={<PerformancePage />} />
