@@ -205,7 +205,7 @@ function Workspace({
 
       {focused ? (
         // Focus mode: only the expanded card, full width
-        <div className="px-9 py-6">
+        <div className="px-4 sm:px-9 py-4 sm:py-6">
           {expanded && (
             <ExpandedCardOnly
               entry={entry}
@@ -219,7 +219,7 @@ function Workspace({
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-[280px_1fr] gap-0">
+        <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-0">
           <LeftRail entry={entry} />
           <MainPane
             entry={entry}
@@ -247,7 +247,7 @@ function ModalHeader({
   onExitFocus: () => void;
 }): JSX.Element {
   return (
-    <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 bg-paper/95 backdrop-blur rounded-t-xl border-b border-line">
+    <div className="sticky top-0 z-10 flex items-center justify-between px-4 sm:px-5 py-3 bg-paper/95 backdrop-blur rounded-t-xl border-b border-line">
       <div className="flex items-center gap-3 min-w-0">
         <span className="text-[10.5px] font-bold uppercase tracking-wider text-ink-3">
           Entry
@@ -357,7 +357,7 @@ function LeftRail({ entry }: { entry: EntryWithTasks }): JSX.Element {
     : null;
 
   return (
-    <div className="border-r border-line px-5 py-6 space-y-5 max-h-[calc(100vh-160px)] overflow-y-auto canvas-scroll">
+    <div className="border-b md:border-b-0 md:border-r border-line px-4 sm:px-5 py-5 sm:py-6 space-y-5 md:max-h-[calc(100vh-160px)] md:overflow-y-auto canvas-scroll">
       <Title entryId={entry.id} initial={entry.title} />
 
       <div className="space-y-0.5">
@@ -472,7 +472,7 @@ function MainPane({
   onEnterFocus: (f: ContentField) => void;
 }): JSX.Element {
   return (
-    <div className="px-7 py-6 max-h-[calc(100vh-160px)] overflow-y-auto canvas-scroll">
+    <div className="px-4 sm:px-7 py-5 sm:py-6 md:max-h-[calc(100vh-160px)] md:overflow-y-auto canvas-scroll">
       {/* Brief — short prose blocks, no harsh labels */}
       <Brief entry={entry} />
 
