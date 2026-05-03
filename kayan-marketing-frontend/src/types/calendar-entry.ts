@@ -1,6 +1,7 @@
 import type { EntryType } from "../constants/entry-types";
 import type { BudgetCategory } from "../constants/budget-categories";
 import type { Assignee } from "../constants/task-chains";
+import type { PatternId } from "../constants/patterns";
 
 export type EntryStatus = "planned" | "in_progress" | "live" | "done" | "cancelled";
 export type ProductionMode = "batch" | "adhoc";
@@ -47,6 +48,14 @@ export interface CalendarEntry {
   productionMode: ProductionMode;
   shootDate: string | null;
   editorDaysOffset: number;
+  // Recipe Book V2 tagging — added in migration 0029. Both nullable.
+  // patternId: which of the 9 winning patterns (P1–P9) this entry follows.
+  // theme: free-form focus product/topic for AI-targeted generation.
+  patternId: PatternId | null;
+  theme: string | null;
+  // Trace which topic spawned this entry (migration 0031). Null for entries
+  // created directly without going through the topics queue.
+  sourceTopicId: string | null;
   createdAt: string;
   updatedAt: string;
   // Slim task summary inlined by GET /calendar-entries (list response). Used

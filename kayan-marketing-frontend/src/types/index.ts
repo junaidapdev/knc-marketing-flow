@@ -7,3 +7,4 @@ export * from "./branch";
 export * from "./performance";
 export * from "./budget";
 export * from "./brand";
+export * from "./topic";

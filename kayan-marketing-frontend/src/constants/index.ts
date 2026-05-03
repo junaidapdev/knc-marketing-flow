@@ -8,3 +8,5 @@ export * from "./entry-colors";
 export * from "./campaign";
 export * from "./social-platform";
 export * from "./ai";
+export * from "./patterns";
+export * from "./topics";
