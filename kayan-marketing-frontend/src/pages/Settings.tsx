@@ -4,14 +4,16 @@ import { useCurrentBrand } from "../hooks/use-current-brand";
 import { useBrand, useUpdateBrand } from "../features/brand/hooks/use-brand";
 import type { BrandVoiceConfig } from "../types/brand";
 import { BrandDnaSection } from "../features/settings/BrandDnaSection";
+import { ProductsSection } from "../features/products/ProductsSection";
 import { logger } from "../utils/logger";
 
 // Top-level Settings tabs. Brand DNA opens by default — it's the highest-
 // leverage screen (every save changes how the AI writes from then on).
-type SettingsTab = "dna" | "voice";
+type SettingsTab = "dna" | "products" | "voice";
 
 const TABS: ReadonlyArray<{ id: SettingsTab; label: string }> = [
   { id: "dna", label: "Brand DNA" },
+  { id: "products", label: "Products" },
   { id: "voice", label: "Voice & rhythm" },
 ];
 
@@ -154,6 +156,15 @@ export default function SettingsPage(): JSX.Element {
       {activeTab === "dna" && (
         <section className="card">
           <BrandDnaSection />
+        </section>
+      )}
+
+      {/* ───── Products tab ─────
+          Marketing catalog (chunk 7). The AI Generate flow injects matching
+          products by name into every script — branch-aware. */}
+      {activeTab === "products" && (
+        <section className="card">
+          <ProductsSection />
         </section>
       )}
 

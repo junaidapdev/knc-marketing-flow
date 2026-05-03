@@ -20,9 +20,15 @@ const CONTEXT_TYPES = ["entry", "campaign", "calendar", "performance", "freeform
 // to a specific Kayan post. Every field is optional — a request that omits
 // `entryContext` (or sends only some fields) produces a valid prompt that
 // just falls back to brand-DNA-only generation.
+//
+// branchId added in chunk 7: when provided, the products lookup filters to
+// items actually stocked at that branch. branchName is still accepted (used
+// in the brief block as the human label) and we resolve name→id ourselves
+// when only the name is sent.
 const entryContextSchema = z
   .object({
     patternId: z.string().regex(/^P\d{1,2}$/, "Pattern id like P1, P9").optional(),
+    branchId: z.string().uuid().optional(),
     branchName: z.string().min(1).max(120).optional(),
     theme: z.string().min(1).max(200).optional(),
     entryType: z.string().min(1).max(40).optional(),
@@ -139,11 +145,204 @@ If any of these fields are missing, omit only the missing line — don't fabrica
 `;
 }
 
+// ─────── Product catalog loader (chunk 7) ───────
+//
+// When generate_script + entryContext is supplied, we pull a small set of
+// "relevant" products from the catalog to inject by name into the prompt.
+// Goal: scripts reference REAL products (Pepero, Tiffany, Fahadah) instead
+// of generic "candy". The relevance rules:
+//
+//   1. Always include hero products (Kayan's signature items).
+//   2. Always include trending products (viral / new arrivals).
+//   3. If theme is set, fuzzy-match it against name + manufacturer +
+//      marketing_notes + tags.
+//   4. If branchId is set, drop any product not stocked at that branch.
+//   5. Cap at MAX_PRODUCTS so we don't blow the context window.
+
+const MAX_PRODUCTS = 20;
+
+interface ProductRow {
+  id: string;
+  name: string;
+  manufacturer: string | null;
+  marketing_notes: string | null;
+  tags: string[] | null;
+  price_tier: string;
+  is_trending: boolean;
+  is_hero_product: boolean;
+  category: { name: string | null } | null;
+  branches: Array<{ branch_id: string; is_in_stock: boolean }> | null;
+}
+
+interface RelevantProduct {
+  id: string;
+  name: string;
+  manufacturer: string | null;
+  marketingNotes: string | null;
+  tags: string[];
+  priceTier: string;
+  isHero: boolean;
+  isTrending: boolean;
+  categoryName: string;
+  // Source flag for debugging / token telemetry — which rule pulled this row in.
+  sourceTag: "hero" | "trending" | "theme";
+}
+
+// deno-lint-ignore no-explicit-any
+type DbClient = any;
+
+async function loadRelevantProducts(
+  db: DbClient,
+  brandId: string,
+  branchId: string | null,
+  theme: string | null,
+): Promise<RelevantProduct[]> {
+  const baseSelect =
+    "id, name, manufacturer, marketing_notes, tags, price_tier, is_trending, is_hero_product, " +
+    "category:product_categories(name), branches:product_branches(branch_id, is_in_stock)";
+
+  // Step 1: heroes
+  const { data: heroData } = await db
+    .from("products")
+    .select(baseSelect)
+    .eq("brand_id", brandId)
+    .eq("is_active", true)
+    .eq("is_hero_product", true);
+
+  // Step 2: trending
+  const { data: trendingData } = await db
+    .from("products")
+    .select(baseSelect)
+    .eq("brand_id", brandId)
+    .eq("is_active", true)
+    .eq("is_trending", true);
+
+  // Step 3: theme matches (if theme supplied). Build a multi-keyword `or`
+  // filter using ilike across name + manufacturer + marketing_notes. Tag
+  // matching is done via `contains` with the lowercased keyword.
+  let themeData: ProductRow[] = [];
+  if (theme) {
+    const words = theme
+      .toLowerCase()
+      .split(/[\s,;/]+/)
+      .map((w) => w.trim().replace(/[%_]/g, ""))
+      .filter((w) => w.length > 2);
+    if (words.length > 0) {
+      const orParts = words
+        .flatMap((w) => [
+          `name.ilike.%${w}%`,
+          `manufacturer.ilike.%${w}%`,
+          `marketing_notes.ilike.%${w}%`,
+        ])
+        .join(",");
+      const { data } = await db
+        .from("products")
+        .select(baseSelect)
+        .eq("brand_id", brandId)
+        .eq("is_active", true)
+        .or(orParts);
+      themeData = (data ?? []) as ProductRow[];
+
+      // Also pull tag matches (no easy combined `or` with `contains`).
+      for (const w of words) {
+        const { data: tagData } = await db
+          .from("products")
+          .select(baseSelect)
+          .eq("brand_id", brandId)
+          .eq("is_active", true)
+          .contains("tags", [w]);
+        if (tagData) themeData = themeData.concat(tagData as ProductRow[]);
+      }
+    }
+  }
+
+  const heroes = (heroData ?? []) as ProductRow[];
+  const trending = (trendingData ?? []) as ProductRow[];
+
+  // Branch filter: drop anything not stocked at this branch.
+  const filterByBranch = (rows: ProductRow[]): ProductRow[] => {
+    if (!branchId) return rows;
+    return rows.filter((p) =>
+      Array.isArray(p.branches) &&
+      p.branches.some((b) => b.branch_id === branchId && b.is_in_stock !== false),
+    );
+  };
+
+  // Combine in priority order, dedupe by id, keep the first sourceTag we see.
+  const seen = new Set<string>();
+  const out: RelevantProduct[] = [];
+  const push = (rows: ProductRow[], sourceTag: RelevantProduct["sourceTag"]): void => {
+    for (const p of filterByBranch(rows)) {
+      if (seen.has(p.id)) continue;
+      seen.add(p.id);
+      out.push({
+        id: p.id,
+        name: p.name,
+        manufacturer: p.manufacturer,
+        marketingNotes: p.marketing_notes,
+        tags: Array.isArray(p.tags) ? p.tags : [],
+        priceTier: p.price_tier,
+        isHero: p.is_hero_product,
+        isTrending: p.is_trending,
+        categoryName: p.category?.name ?? "",
+        sourceTag,
+      });
+      if (out.length >= MAX_PRODUCTS) return;
+    }
+  };
+
+  push(heroes, "hero");
+  push(trending, "trending");
+  push(themeData, "theme");
+
+  return out;
+}
+
+function buildProductsBlock(products: RelevantProduct[]): string {
+  if (products.length === 0) return "";
+
+  const lines: string[] = ["", "# RELEVANT PRODUCTS FOR THIS SCRIPT", ""];
+  lines.push(
+    "These are the actual products the script can reference. Use real product names — do not invent products. Each product includes context for how to mention it.",
+  );
+  lines.push("");
+
+  for (const p of products) {
+    const flagBits: string[] = [];
+    if (p.isHero) flagBits.push("★ HERO");
+    if (p.isTrending) flagBits.push("🔥 TRENDING");
+    const flags = flagBits.length > 0 ? ` ${flagBits.join(" ")}` : "";
+    const category = p.categoryName ? ` (${p.categoryName})` : "";
+    lines.push(`- **${p.name}**${category}`);
+    lines.push(`  Manufacturer: ${p.manufacturer ?? "N/A"}`);
+    lines.push(`  Tier: ${p.priceTier}${flags}`);
+    if (p.marketingNotes) lines.push(`  Notes: ${p.marketingNotes}`);
+    if (p.tags.length > 0) lines.push(`  Tags: ${p.tags.join(", ")}`);
+  }
+
+  lines.push("");
+  lines.push("CRITICAL:");
+  lines.push("- Only reference products from this list. Do not invent product names.");
+  lines.push(
+    '- If the script needs a product that isn\'t in this list, refer to it generically (e.g., "imported chocolate") rather than making up a brand name.',
+  );
+  lines.push(
+    '- Tier "anchor" = 11.50 SR. Tier "premium" = open price. Tier "bulk" = multi-pack bundle at the anchor price. Tier "open_price" = variable.',
+  );
+  lines.push("- Hero products should be emphasized — these are Kayan's signature items.");
+  lines.push(
+    "- Trending products are the timely ones — feature them in new-arrival or viral-themed content.",
+  );
+
+  return "\n" + lines.join("\n") + "\n";
+}
+
 function buildSystemPrompt(
   template: string,
   voiceConfig: Record<string, unknown>,
   dnaMarkdown: string | null,
   entryContext?: EntryContext,
+  productsBlock = "",
 ): string {
   const baseVoice = `You are an AI assistant for Kayan Sweets, a Saudi confectionery retail chain.
 Brand voice: ${JSON.stringify(voiceConfig)}.
@@ -157,11 +356,15 @@ Always respect this voice. Provide bilingual output (Arabic + English) when gene
     : "";
 
   // Per-call brief — only injected for generate_script when entryContext is
-  // supplied. Lands AFTER the BRAND DNA block so the LLM reads "global voice
-  // → script-specific anchors → task" in that order.
+  // supplied. Lands AFTER the BRAND DNA block (and after the products block)
+  // so the LLM reads "global voice → catalog → script-specific anchors → task".
   const briefBlock = template === "generate_script"
     ? buildEntryBriefBlock(entryContext, voiceConfig)
     : "";
+
+  // Products block (chunk 7) — only meaningful for generate_script. Built by
+  // the caller because it's an async DB query; passed in here as a string.
+  const productsSection = template === "generate_script" ? productsBlock : "";
 
   // Templates that produce content for an entry's authoring fields return
   // structured sections so the frontend can offer per-field "Save" buttons
@@ -171,7 +374,7 @@ Always respect this voice. Provide bilingual output (Arabic + English) when gene
 
   switch (template) {
     case "generate_script":
-      return `${baseVoice}${dnaBlock}${briefBlock}
+      return `${baseVoice}${dnaBlock}${productsSection}${briefBlock}
 Your task: write a 15-60 second short-form video script with a strong 3-second hook, clear product showcase, and CTA. Provide both Arabic and English versions with shot directions in [brackets].
 ${STRUCTURED_NOTE}
 
@@ -260,10 +463,11 @@ Deno.serve(async (req) => {
 
   const db = createClient(supabaseUrl, serviceKey);
 
-  // Load brand voice config (V1 single-tenant — first brand)
+  // Load brand voice config (V1 single-tenant — first brand). Brand id is
+  // needed by the chunk-7 product loader downstream.
   const { data: brand } = await db
     .from("brands")
-    .select("voice_config, dna_markdown")
+    .select("id, voice_config, dna_markdown")
     .limit(1)
     .single();
   const voiceConfig = (brand?.voice_config as Record<string, unknown>) ?? {};
@@ -293,11 +497,45 @@ Deno.serve(async (req) => {
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
 
+  // Resolve branchName → branchId when only the name was sent. The frontend
+  // can now send branchId directly (chunk 7) but older callers still send
+  // just the name; this keeps both forms working.
+  let resolvedBranchId: string | null = parsed.data.entryContext?.branchId ?? null;
+  if (
+    parsed.data.promptTemplate === "generate_script" &&
+    !resolvedBranchId &&
+    parsed.data.entryContext?.branchName
+  ) {
+    const { data: branchRow } = await db
+      .from("branches")
+      .select("id")
+      .ilike("name", parsed.data.entryContext.branchName)
+      .limit(1)
+      .single();
+    if (branchRow?.id) resolvedBranchId = branchRow.id as string;
+  }
+
+  // Pull the branch-aware product slice for generate_script. Other templates
+  // (caption_hashtags, suggest_hooks, etc.) skip this — only the script
+  // template benefits from the catalog injection.
+  let productsBlock = "";
+  const brandIdForProducts = (brand as { id?: string } | null)?.id ?? null;
+  if (parsed.data.promptTemplate === "generate_script" && brandIdForProducts) {
+    const products = await loadRelevantProducts(
+      db,
+      brandIdForProducts,
+      resolvedBranchId,
+      parsed.data.entryContext?.theme ?? null,
+    );
+    productsBlock = buildProductsBlock(products);
+  }
+
   const systemPrompt = buildSystemPrompt(
     parsed.data.promptTemplate,
     voiceConfig,
     dnaMarkdown,
     parsed.data.entryContext,
+    productsBlock,
   );
   const userContent = parsed.data.contextPayload
     ? `${parsed.data.userMessage}\n\nContext data: ${JSON.stringify(parsed.data.contextPayload)}`

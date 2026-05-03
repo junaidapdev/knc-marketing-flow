@@ -1343,10 +1343,12 @@ function ExpandedCardBody({
       // Each field is optional — undefined ones are dropped from the body so
       // the backend Zod schema (.strict()) doesn't reject them. The backend
       // omits any line whose source field is missing.
-      // Note: `occasion` will come from the entry in Chunk 4 (not on the
-      // entry yet), so we leave it undefined.
+      // Chunk 7: branchId is now sent in addition to branchName so the
+      // products loader can filter the catalog to items stocked at this
+      // specific branch.
       const entryContext = {
         patternId: entry.patternId ?? undefined,
+        branchId: entry.branchId ?? undefined,
         branchName: entry.branch?.name ?? undefined,
         theme: entry.theme ?? undefined,
         entryType: entry.type,
