@@ -3,7 +3,17 @@ import { Save, Check } from "lucide-react";
 import { useCurrentBrand } from "../hooks/use-current-brand";
 import { useBrand, useUpdateBrand } from "../features/brand/hooks/use-brand";
 import type { BrandVoiceConfig } from "../types/brand";
+import { BrandDnaSection } from "../features/settings/BrandDnaSection";
 import { logger } from "../utils/logger";
+
+// Top-level Settings tabs. Brand DNA opens by default — it's the highest-
+// leverage screen (every save changes how the AI writes from then on).
+type SettingsTab = "dna" | "voice";
+
+const TABS: ReadonlyArray<{ id: SettingsTab; label: string }> = [
+  { id: "dna", label: "Brand DNA" },
+  { id: "voice", label: "Voice & rhythm" },
+];
 
 // Convert a comma- or newline-separated string into a clean string array
 // (used for do_say / dont_say / default_hashtags fields).
@@ -22,6 +32,7 @@ export default function SettingsPage(): JSX.Element {
   const { brandId } = useCurrentBrand();
   const brand = useBrand(brandId);
   const updateBrand = useUpdateBrand();
+  const [activeTab, setActiveTab] = useState<SettingsTab>("dna");
 
   // Form state — kept local until Save is pressed. Voice config is split
   // into known structured fields so the marketer doesn't have to write JSON;
@@ -34,7 +45,9 @@ export default function SettingsPage(): JSX.Element {
   const [defaultHashtags, setDefaultHashtags] = useState("");
   const [doSay, setDoSay] = useState("");
   const [dontSay, setDontSay] = useState("");
-  const [dna, setDna] = useState("");
+  // Brand DNA (markdown) and the raw voice_config JSON live on their own tab
+  // (BrandDnaSection) — that one uses the audit-aware /brand-dna endpoint and
+  // tracks history. The legacy form only manages the structured voice fields.
   // Social handles drive the Apify ingest on the Performance page. Stored as
   // bare usernames (no @, no full URL) — the Edge Function constructs the
   // scrape input from these.
@@ -59,7 +72,6 @@ export default function SettingsPage(): JSX.Element {
     setDefaultHashtags(joinList(v.default_hashtags));
     setDoSay(joinList(v.do_say));
     setDontSay(joinList(v.dont_say));
-    setDna(brand.data.dnaMarkdown ?? "");
     setInstagramHandle(brand.data.instagramHandle ?? "");
     setTiktokHandle(brand.data.tiktokHandle ?? "");
     setShootCapacity(String(brand.data.defaultShootCapacity ?? 4));
@@ -91,7 +103,8 @@ export default function SettingsPage(): JSX.Element {
         id: brand.data.id,
         input: {
           voiceConfig: nextVoice,
-          dnaMarkdown: dna.trim().length > 0 ? dna : null,
+          // dnaMarkdown intentionally NOT sent here — the Brand DNA tab owns
+          // it and writes via the audit-aware /brand-dna endpoint.
           instagramHandle: instagramHandle.trim().length > 0 ? instagramHandle.trim() : null,
           tiktokHandle: tiktokHandle.trim().length > 0 ? tiktokHandle.trim() : null,
           defaultShootCapacity: parseInt0(shootCapacity, 4),
@@ -117,14 +130,46 @@ export default function SettingsPage(): JSX.Element {
         </p>
       </header>
 
-      {brand.isLoading && <p className="text-ink-3 text-[13px]">Loading brand…</p>}
-      {brand.isError && (
-        <div className="rounded-md bg-rose/40 border border-rose-deep/30 text-[#6E2A35] p-4 text-[13px]">
-          {brand.error instanceof Error ? brand.error.message : "Failed to load brand."}
-        </div>
+      {/* Tab nav. Horizontal-scroll on tiny screens so labels never wrap. */}
+      <nav className="flex gap-1 border-b border-line overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0 whitespace-nowrap">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setActiveTab(t.id)}
+            className={`px-3 md:px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition flex-shrink-0 ${
+              activeTab === t.id
+                ? "border-obsidian text-ink"
+                : "border-transparent text-ink-2 hover:text-ink"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* ───── Brand DNA tab ─────
+          Owns dna_markdown + voice_config (raw). Saves go through the
+          audit-aware /brand-dna endpoint and create history entries. */}
+      {activeTab === "dna" && (
+        <section className="card">
+          <BrandDnaSection />
+        </section>
       )}
 
-      {brand.data && (
+      {/* ───── Voice & rhythm tab ─────
+          The structured voice fields, production rhythm, and social handles
+          are below. They write through the legacy /brands PATCH (no audit). */}
+      {activeTab === "voice" && (
+        <>
+          {brand.isLoading && <p className="text-ink-3 text-[13px]">Loading brand…</p>}
+          {brand.isError && (
+            <div className="rounded-md bg-rose/40 border border-rose-deep/30 text-[#6E2A35] p-4 text-[13px]">
+              {brand.error instanceof Error ? brand.error.message : "Failed to load brand."}
+            </div>
+          )}
+
+          {brand.data && (
         <>
           <section className="card space-y-4">
             <div>
@@ -299,25 +344,9 @@ export default function SettingsPage(): JSX.Element {
             </div>
           </section>
 
-          <section className="card space-y-4">
-            <div>
-              <h2 className="h-card">Brand DNA</h2>
-              <p className="text-[12.5px] text-ink-3 mt-0.5">
-                The long-form bible. Mission, values, audience personas, content pillars,
-                competitor positioning, example top-performing posts. Markdown supported.
-                Injected verbatim into every AI generation.
-              </p>
-            </div>
-            <textarea
-              value={dna}
-              onChange={(e) => setDna(e.target.value)}
-              rows={20}
-              maxLength={50000}
-              placeholder={`# Mission\nKayan makes joy affordable: 11.50 SR fixed price, no-haggle...\n\n# Audience personas\n- **The treat-grabber** — youth, IG/TikTok-native...\n- **The family stocker** — bulk buyer, weekly run...\n\n# Content pillars\n1. Product showcase (40%) — close-up textures, sound design\n2. Trend riffs (30%) — local Saudi trend audio\n3. Behind the scenes (20%) — staff candor\n4. Offers (10%) — countdown clarity\n\n# Reference posts (what worked)\n- Eid teaser, Apr 2025: 480k plays — secret was the 3-second product reveal hook\n- ...`}
-              className="form-textarea font-mono text-[13px] leading-relaxed"
-            />
-            <p className="text-[11px] text-ink-3">{dna.length} / 50,000 characters</p>
-          </section>
+          {/* Brand DNA section removed from this tab — it lives on its own
+              tab now (/brand-dna endpoint, audit + history). Keep the legacy
+              brand voice form clean. */}
 
           {updateBrand.isError && (
             <div className="rounded-md bg-rose/40 border border-rose-deep/30 text-[#6E2A35] p-3 text-[12.5px]">
@@ -343,6 +372,8 @@ export default function SettingsPage(): JSX.Element {
               {updateBrand.isPending ? "Saving…" : "Save changes"}
             </button>
           </div>
+        </>
+          )}
         </>
       )}
     </div>
