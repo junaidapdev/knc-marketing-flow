@@ -84,3 +84,15 @@
 - Sidebar entry "Influencer Search" with the `Search` icon (lucide-react), placed between Topics and Campaigns in `AppShell.tsx`
 - `pages/InfluencerSearch.tsx`: title-only scaffold page so the route + nav are demoable
 - No filter form, results, or backend wiring yet — those start in Chunk 2 (mocked) and Chunk 3 (real Apify)
+
+## Influencer Search — Chunk 2: Filter form + results grid (mocked) (DONE)
+- New folder `src/features/influencers/`:
+  • `components/FilterForm.tsx` — RHF + Zod, all 6 filter groups (platforms multi-select with min-1 rule, location countries + city, audience age range with min/max number inputs 13–65, gender skew, audience country breakdown, follower min/max, engagement rate min/max %, avg views min, avg likes min, posting frequency, content categories multi-select, language). Cross-field validation via `superRefine`: max ≥ min for age, followers, and engagement
+  • `components/ResultCard.tsx` — avatar (or `User` icon fallback), `@handle`, platform chip, city/country line, follower + engagement metrics, score placeholder ("—" with tooltip pointing to Chunk 5), Save button (no-op, local-state-only flip to `BookmarkCheck`)
+  • `components/ResultsGrid.tsx` — responsive grid (1 / 2 / 3 cols at sm / xl), with empty/loading/error states
+  • `hooks/use-creator-search.ts` — React Query mutation calling a 600 ms stub that filters `MOCK_CREATORS` by selected platforms only (other filters wait for Chunk 3 backend)
+  • `data/mock-creators.ts` — 10 hardcoded GCC dessert/family/food creators across all 3 platforms
+  • `utils/format.ts` — `formatFollowerCount` (480_000 → "480K", 1_240_000 → "1.2M") and `formatEngagementRate` (handles both decimal `0.054` and already-percent `5.4` inputs)
+- `pages/InfluencerSearch.tsx` rewired into a two-column layout (`lg:grid-cols-[360px_1fr]`); collapses to single column below `lg`. Stale-result preservation: latest successful results persist across rerenders that aren't part of a new search
+- No backend wiring, no real persistence — Save button local-only; mutation never hits the network. All standards observed (no `any`, Zod validates before submit, no `console.*`, constants/types modular)
+- `npm run build`, `eslint`, and `tsc --noEmit` all clean
