@@ -59,6 +59,7 @@ import { PATTERNS, PATTERN_BY_ID, type PatternId } from "../../constants/pattern
 import { isAIEnabled } from "../../config/env";
 import { RenderedMarkdown } from "./RenderedMarkdown";
 import { apiRequest } from "../../utils/api-client";
+import { parseAIResponse, hasParsedSections } from "../ai/parse-ai-response";
 
 const STATUS_VALUES: EntryStatus[] = ["planned", "in_progress", "live", "done", "cancelled"];
 
@@ -1370,14 +1371,49 @@ function ExpandedCardBody({
       });
       if (!result.success) throw new Error(result.error.message);
       const generated = result.data.assistantMessage;
-      // Optimistic local update + persist
-      setDraft(generated);
-      lastSavedRef.current = generated;
+
+      // The AI returns the full structured payload (## Script / ## Caption /
+      // ## Hashtags) regardless of which field the user clicked. Split it so
+      // each section lands in its own DB column rather than dumping the whole
+      // markdown into one field.
+      //
+      // Fallback: if no recognized headings are present (free-form / older
+      // template), save the raw text into the field the user clicked.
+      const parsed = parseAIResponse(generated);
+      const patch: Record<string, string> = {};
+      if (hasParsedSections(parsed)) {
+        if (parsed.script) patch.script = parsed.script;
+        if (parsed.caption) patch.caption = parsed.caption;
+        if (parsed.hashtags) patch.hashtags = parsed.hashtags;
+      }
+
+      // The local textarea shows ONLY the section that matches the field the
+      // user clicked Generate on. If parsing produced that section, prefer it;
+      // otherwise show the raw response so nothing's silently dropped.
+      const sectionForThisField =
+        field === "script"
+          ? parsed.script
+          : field === "caption"
+            ? parsed.caption
+            : parsed.hashtags;
+      const localText = sectionForThisField ?? (Object.keys(patch).length === 0 ? generated : "");
+
+      setDraft(localText);
+      lastSavedRef.current = localText;
       setEditing(false);
-      await updateEntry.mutateAsync({
-        id: entry.id,
-        input: { [field]: generated },
-      });
+
+      // Make sure the field the user clicked is in the patch even when the
+      // AI returned only OTHER sections (e.g. user clicked Hashtags but the
+      // model only emitted ## Caption). Saves the raw response into the
+      // clicked field so the user always sees something.
+      if (Object.keys(patch).length === 0) {
+        patch[field] = generated;
+      } else if (!(field in patch)) {
+        // Don't overwrite a real parsed section with raw text — only fill the
+        // clicked field if it would otherwise be empty.
+      }
+
+      await updateEntry.mutateAsync({ id: entry.id, input: patch });
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 1500);
     } catch (err) {
