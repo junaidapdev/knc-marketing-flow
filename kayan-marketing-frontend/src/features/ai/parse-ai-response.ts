@@ -13,20 +13,37 @@ export interface ParsedAISections {
   hashtags: string | null;
 }
 
-const SECTION_REGEX =
-  /^##\s+(script|caption|hashtags)\s*\n([\s\S]*?)(?=\n##\s+(?:script|caption|hashtags)\b|\s*$)/gim;
+type SectionKey = keyof ParsedAISections;
+
+const SECTION_HEADING_REGEX = /^##\s+(script|caption|hashtags)\s*:?\s*$/i;
 
 export function parseAIResponse(text: string): ParsedAISections {
   const result: ParsedAISections = { script: null, caption: null, hashtags: null };
-  const matches = text.matchAll(SECTION_REGEX);
-  for (const match of matches) {
-    const heading = match[1]?.toLowerCase();
-    const content = match[2]?.trim() ?? "";
-    if (!content) continue;
-    if (heading === "script") result.script = content;
-    else if (heading === "caption") result.caption = content;
-    else if (heading === "hashtags") result.hashtags = content;
+
+  let active: SectionKey | null = null;
+  let buffer: string[] = [];
+
+  const flush = (): void => {
+    if (!active) return;
+    const content = buffer.join("\n").trim();
+    if (content) result[active] = content;
+    buffer = [];
+  };
+
+  for (const line of text.split(/\r?\n/)) {
+    const heading = line.match(SECTION_HEADING_REGEX)?.[1]?.toLowerCase() as
+      | SectionKey
+      | undefined;
+    if (heading) {
+      flush();
+      active = heading;
+      buffer = [];
+      continue;
+    }
+    if (active) buffer.push(line);
   }
+
+  flush();
   return result;
 }
 

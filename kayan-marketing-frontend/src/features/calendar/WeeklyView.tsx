@@ -2,15 +2,29 @@ import { useMemo } from "react";
 import { startOfWeek, endOfWeek, eachDayOfInterval, format, isToday } from "date-fns";
 import { Clapperboard } from "lucide-react";
 import { useCalendarEntries } from "./hooks/use-calendar-entries";
+import { useMarketingEvents } from "../marketing-events/hooks";
 import { useTasks } from "../tasks/hooks/use-tasks";
 import { EntryChip } from "./EntryChip";
 import { ASSIGNEE_LABELS } from "../../constants/task-chains";
 import { useCurrentBrand } from "../../hooks/use-current-brand";
 import { useBrand } from "../brand/hooks/use-brand";
 import type { CalendarEntry } from "../../types/calendar-entry";
+import type { MarketingEvent, MarketingEventImportance } from "../../types/marketing-event";
 import type { Task } from "../../types/task";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const EVENT_PILL_CLASS: Record<MarketingEventImportance, string> = {
+  mega: "bg-obsidian text-yellow border-obsidian",
+  major: "bg-yellow-bg text-obsidian border-yellow/50",
+  soft: "bg-sage/25 text-[#2C5530] border-sage/60",
+  reference: "bg-cream-2 text-ink-3 border-line",
+};
+
+function eventsForDay(events: MarketingEvent[] | undefined, dayKey: string): MarketingEvent[] {
+  if (!events) return [];
+  return events.filter((event) => event.startDate <= dayKey && event.endDate >= dayKey);
+}
 
 interface Props {
   cursor: Date;
@@ -31,6 +45,12 @@ export function WeeklyView({ cursor, branchId, onOpenEntry, onAddOnDay }: Props)
     branchId: branchId ?? undefined,
   });
   const tasks = useTasks({ from: fromIso, to: toIso });
+  const { brandId: currentBrandId } = useCurrentBrand();
+  const marketingEvents = useMarketingEvents({
+    brandId: currentBrandId,
+    from: fromIso,
+    to: toIso,
+  });
 
   const days = useMemo(
     () => eachDayOfInterval({ start: weekStart, end: weekEnd }),
@@ -65,7 +85,6 @@ export function WeeklyView({ cursor, branchId, onOpenEntry, onAddOnDay }: Props)
     return map;
   }, [entries.data]);
 
-  const { brandId: currentBrandId } = useCurrentBrand();
   const brand = useBrand(currentBrandId);
   const shootCapacity = brand.data?.defaultShootCapacity ?? 4;
 
@@ -80,6 +99,7 @@ export function WeeklyView({ cursor, branchId, onOpenEntry, onAddOnDay }: Props)
             const shootCount = shootCountByDay.get(dayKey) ?? 0;
             const isShootDay = shootCount > 0;
             const isOverCapacity = shootCount > shootCapacity;
+            const dayEvents = eventsForDay(marketingEvents.data, dayKey);
             return (
               <div
                 key={day.toISOString()}
@@ -110,6 +130,20 @@ export function WeeklyView({ cursor, branchId, onOpenEntry, onAddOnDay }: Props)
                 >
                   {format(day, "d MMM")}
                 </div>
+                {dayEvents.length > 0 && (
+                  <div className="mt-1.5 space-y-1">
+                    {dayEvents.slice(0, 2).map((event) => (
+                      <div
+                        key={event.id}
+                        className={`truncate rounded-md border px-1.5 py-0.5 text-[10.5px] font-semibold ${EVENT_PILL_CLASS[event.importance]}`}
+                        title={event.marketingNotes ?? event.description ?? event.title}
+                      >
+                        {event.title}
+                        {event.isDateEstimate ? " (est.)" : ""}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -124,6 +158,7 @@ export function WeeklyView({ cursor, branchId, onOpenEntry, onAddOnDay }: Props)
             const shootCount = shootCountByDay.get(key) ?? 0;
             const isShootDay = shootCount > 0;
             const isOverCapacity = shootCount > shootCapacity;
+            const dayEvents = eventsForDay(marketingEvents.data, key);
             return (
               <div
                 key={key}
@@ -137,6 +172,20 @@ export function WeeklyView({ cursor, branchId, onOpenEntry, onAddOnDay }: Props)
                       : ""
                 }`}
               >
+                {dayEvents.length > 0 && (
+                  <div className="space-y-1">
+                    {dayEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${EVENT_PILL_CLASS[event.importance]}`}
+                        title={event.marketingNotes ?? event.description ?? event.title}
+                      >
+                        {event.title}
+                        {event.isDateEstimate ? " (est.)" : ""}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {dayEntries.length === 0 ? (
                   <button
                     type="button"
@@ -178,6 +227,7 @@ export function WeeklyView({ cursor, branchId, onOpenEntry, onAddOnDay }: Props)
             const shootCount = shootCountByDay.get(key) ?? 0;
             const isShootDay = shootCount > 0;
             const isOverCapacity = shootCount > shootCapacity;
+            const dayEvents = eventsForDay(marketingEvents.data, key);
             return (
               <div
                 key={key}
@@ -225,9 +275,33 @@ export function WeeklyView({ cursor, branchId, onOpenEntry, onAddOnDay }: Props)
                   </div>
                 </div>
                 {dayEntries.length === 0 ? (
-                  <p className="text-[12px] text-ink-3 italic">No entries.</p>
+                  <>
+                    {dayEvents.length > 0 && (
+                      <div className="flex flex-col gap-1.5 mb-2">
+                        {dayEvents.map((event) => (
+                          <div
+                            key={event.id}
+                            className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${EVENT_PILL_CLASS[event.importance]}`}
+                          >
+                            {event.title}
+                            {event.isDateEstimate ? " (est.)" : ""}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-[12px] text-ink-3 italic">No entries.</p>
+                  </>
                 ) : (
                   <div className="flex flex-col gap-1.5">
+                    {dayEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${EVENT_PILL_CLASS[event.importance]}`}
+                      >
+                        {event.title}
+                        {event.isDateEstimate ? " (est.)" : ""}
+                      </div>
+                    ))}
                     {dayEntries.map((entry) => (
                       <EntryChip
                         key={entry.id}

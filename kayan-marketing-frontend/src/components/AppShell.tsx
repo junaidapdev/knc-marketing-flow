@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   Lightbulb,
+  CalendarDays,
   type LucideIcon,
 } from "lucide-react";
 import { ROUTES } from "../constants/routes";
@@ -30,6 +31,7 @@ interface NavEntry {
 const PRIMARY_NAV: ReadonlyArray<NavEntry> = [
   { to: ROUTES.TODAY, label: "Today", icon: ClipboardList },
   { to: ROUTES.CALENDAR, label: "Calendar", icon: Calendar },
+  { to: ROUTES.MARKETING_CALENDAR, label: "Events", icon: CalendarDays },
   { to: ROUTES.TOPICS, label: "Topics", icon: Lightbulb },
   { to: ROUTES.CAMPAIGNS, label: "Campaigns", icon: Megaphone },
   { to: ROUTES.PERFORMANCE, label: "Performance", icon: BarChart3 },

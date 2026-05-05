@@ -11,14 +11,36 @@ import {
 } from "date-fns";
 import { Clapperboard } from "lucide-react";
 import { useCalendarEntries } from "./hooks/use-calendar-entries";
+import { useMarketingEvents } from "../marketing-events/hooks";
 import { EntryChip } from "./EntryChip";
 import { useCurrentBrand } from "../../hooks/use-current-brand";
 import { useBrand } from "../brand/hooks/use-brand";
 import { ENTRY_TYPE_COLORS } from "../../constants/entry-colors";
 import type { CalendarEntry } from "../../types/calendar-entry";
+import type { MarketingEvent, MarketingEventImportance } from "../../types/marketing-event";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MAX_CHIPS_PER_DAY = 3;
+const MAX_EVENTS_PER_DAY = 2;
+
+const EVENT_DOT_CLASS: Record<MarketingEventImportance, string> = {
+  mega: "bg-obsidian",
+  major: "bg-yellow",
+  soft: "bg-sage-deep",
+  reference: "bg-ink-3",
+};
+
+const EVENT_ROW_CLASS: Record<MarketingEventImportance, string> = {
+  mega: "bg-obsidian text-yellow",
+  major: "bg-yellow-bg text-obsidian border-yellow/50",
+  soft: "bg-sage/25 text-[#2C5530] border-sage/60",
+  reference: "bg-cream-2 text-ink-3 border-line",
+};
+
+function eventsForDay(events: MarketingEvent[] | undefined, dayKey: string): MarketingEvent[] {
+  if (!events) return [];
+  return events.filter((event) => event.startDate <= dayKey && event.endDate >= dayKey);
+}
 
 interface Props {
   cursor: Date;
@@ -44,6 +66,13 @@ export function MonthlyView({
     from: format(gridStart, "yyyy-MM-dd"),
     to: format(gridEnd, "yyyy-MM-dd"),
     branchId: branchId ?? undefined,
+  });
+
+  const { brandId: currentBrandId } = useCurrentBrand();
+  const marketingEvents = useMarketingEvents({
+    brandId: currentBrandId,
+    from: format(gridStart, "yyyy-MM-dd"),
+    to: format(gridEnd, "yyyy-MM-dd"),
   });
 
   const days = useMemo(
@@ -76,7 +105,6 @@ export function MonthlyView({
     return map;
   }, [entries.data]);
 
-  const { brandId: currentBrandId } = useCurrentBrand();
   const brand = useBrand(currentBrandId);
   const shootCapacity = brand.data?.defaultShootCapacity ?? 4;
 
@@ -103,6 +131,7 @@ export function MonthlyView({
           const shootCount = shootCountByDay.get(dayKey) ?? 0;
           const isShootDay = shootCount > 0;
           const isOverCapacity = shootCount > shootCapacity;
+          const dayEvents = eventsForDay(marketingEvents.data, dayKey);
 
           return (
             <div
@@ -154,6 +183,15 @@ export function MonthlyView({
                       {shootCount}
                     </span>
                   )}
+                  {dayEvents.length > 0 && (
+                    <span
+                      className="hidden sm:flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-cream-2 text-ink-2"
+                      title={dayEvents.map((event) => event.title).join(", ")}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${EVENT_DOT_CLASS[dayEvents[0]!.importance]}`} />
+                      {dayEvents.length}
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -170,6 +208,13 @@ export function MonthlyView({
 
               {/* Mobile: dot row + count, Desktop: chips */}
               <div className="sm:hidden flex flex-wrap gap-0.5 min-h-0">
+                {dayEvents.slice(0, 2).map((event) => (
+                  <span
+                    key={event.id}
+                    className={`w-1.5 h-1.5 rounded-full ${EVENT_DOT_CLASS[event.importance]}`}
+                    aria-label={event.title}
+                  />
+                ))}
                 {dayEntries.slice(0, 4).map((entry) => (
                   <span
                     key={entry.id}
@@ -187,6 +232,16 @@ export function MonthlyView({
               </div>
 
               <div className="hidden sm:flex flex-col gap-1 min-h-0">
+                {dayEvents.slice(0, MAX_EVENTS_PER_DAY).map((event) => (
+                  <div
+                    key={event.id}
+                    className={`truncate rounded-md border px-1.5 py-0.5 text-[10.5px] font-semibold ${EVENT_ROW_CLASS[event.importance]}`}
+                    title={event.marketingNotes ?? event.description ?? event.title}
+                  >
+                    {event.title}
+                    {event.isDateEstimate ? " (est.)" : ""}
+                  </div>
+                ))}
                 {dayEntries.slice(0, MAX_CHIPS_PER_DAY).map((entry) => (
                   <EntryChip
                     key={entry.id}

@@ -1353,6 +1353,7 @@ function ExpandedCardBody({
         branchName: entry.branch?.name ?? undefined,
         theme: entry.theme ?? undefined,
         entryType: entry.type,
+        targetDate: entry.targetDate,
       };
 
       const result = await apiRequest<{

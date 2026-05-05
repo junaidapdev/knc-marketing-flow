@@ -8,3 +8,4 @@ export * from "./performance";
 export * from "./budget";
 export * from "./brand";
 export * from "./topic";
+export * from "./marketing-event";
