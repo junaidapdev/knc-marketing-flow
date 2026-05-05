@@ -63,3 +63,9 @@
 - `get_today_summary` left-joins `tasks → calendar_entries → branches` and embeds `branch: { id, name, city } | null` on each task in today/overdue/radar buckets — surfaces branch on Today page
 - `calendar-entries` Edge Function: create schema requires `branchId` when `type === 'shop_activity'` (Zod superRefine, 422 with field-level error); update schema accepts `branchId` without the conditional rule; list GET accepts `?branchId=` filter; detail GET joins `branches` as nested `branch`
 - New Edge Function `branches` (12th) — GET, returns active branches sorted by city then name; replaces the prior direct supabase-js query path
+
+## Influencer Search — Chunk 1: Foundation (DONE)
+- Migration 0039: four new tables with RLS — `creator_searches` (filters jsonb + status lifecycle), `creator_results` (per-creator row keyed to a search; `audience_demographics` jsonb + `is_estimated_demographics` flag; nullable `fit_score`/`fit_rationale` filled in Chunk 5), `saved_creators` (unique on `(brand_id, creator_result_id)` for idempotent saves), `creator_search_costs` (per-run audit of Apify + Claude spend)
+- All four tables follow the V1 single-tenant `authenticated_full_access` RLS stance and cascade on brand/search delete
+- Indexes: `creator_results(search_id)`, `saved_creators(brand_id, created_at desc)`, `creator_search_costs(search_id)`, `creator_searches(brand_id, created_at desc)`
+- No Edge Functions or Apify integration yet — those start in Chunk 3

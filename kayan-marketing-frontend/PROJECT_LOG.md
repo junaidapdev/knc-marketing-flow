@@ -76,3 +76,11 @@
 - `EntryDetailPanel`: read view shows "Branch: <name>, <city>" for shop_activity entries; edit form exposes the same selector with PATCH including `branchId` on save
 - `Calendar.tsx`: branch filter dropdown in header; state in URL search param `?branchId=` via `useSearchParams` (replace mode); persists across refresh and monthly⇄weekly toggle. `useCalendarEntries` accepts `branchId`. MonthlyView and WeeklyView both pass it to the hook so the filter applies to all entries that have a branch_id, not just shop activities
 - `Today` view: `TaskRow` shows an emerald MapPin chip when the task's parent entry has a branch — surfaces the location on the docket without needing to open the entry
+
+## Influencer Search — Chunk 1: Foundation (DONE)
+- Constants `src/constants/influencer.ts`: `PLATFORMS` (tiktok|instagram|youtube), `CONTENT_CATEGORIES` (dessert|food|family|gifting|lifestyle), `LANGUAGES` (arabic|english|both), `GCC_COUNTRIES` (sa|ae|kw|bh|qa|om), `CREATOR_SEARCH_STATUSES` — all with display label maps, mirroring migration 0039 CHECK constraints
+- Types `src/types/influencer.ts`: `CreatorSearch`, `CreatorResult`, `SavedCreator`, `CreatorSearchFilters`, `CreatorSearchCost`, `CreatorAudienceDemographics`. Re-exported from `types/index.ts`
+- Route `INFLUENCER_SEARCH = "/influencers/search"` added to `constants/routes.ts` and registered in `App.tsx`
+- Sidebar entry "Influencer Search" with the `Search` icon (lucide-react), placed between Topics and Campaigns in `AppShell.tsx`
+- `pages/InfluencerSearch.tsx`: title-only scaffold page so the route + nav are demoable
+- No filter form, results, or backend wiring yet — those start in Chunk 2 (mocked) and Chunk 3 (real Apify)
