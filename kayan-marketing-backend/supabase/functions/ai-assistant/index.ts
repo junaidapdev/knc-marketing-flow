@@ -33,6 +33,7 @@ const entryContextSchema = z
     theme: z.string().min(1).max(200).optional(),
     entryType: z.string().min(1).max(40).optional(),
     occasion: z.string().min(1).max(40).optional(),
+    targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   })
   .strict()
   .optional();
@@ -188,8 +189,69 @@ interface RelevantProduct {
   sourceTag: "hero" | "trending" | "theme";
 }
 
-// deno-lint-ignore no-explicit-any
-type DbClient = any;
+type DbClient = ReturnType<typeof createClient>;
+
+interface MarketingEventRow {
+  title: string;
+  event_type: string;
+  importance: string;
+  start_date: string;
+  end_date: string;
+  marketing_notes: string | null;
+  branch_focus: string[] | null;
+  is_date_estimate: boolean;
+}
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+async function loadNearbyMarketingEvents(
+  db: DbClient,
+  brandId: string,
+  targetDate: string | null,
+): Promise<MarketingEventRow[]> {
+  if (!targetDate) return [];
+  const from = addDays(targetDate, -7);
+  const to = addDays(targetDate, 14);
+  const { data } = await db
+    .from("marketing_events")
+    .select(
+      "title, event_type, importance, start_date, end_date, marketing_notes, branch_focus, is_date_estimate",
+    )
+    .eq("brand_id", brandId)
+    .eq("status", "active")
+    .gte("end_date", from)
+    .lte("start_date", to)
+    .order("start_date", { ascending: true });
+  return (data ?? []) as MarketingEventRow[];
+}
+
+function buildMarketingEventsBlock(events: MarketingEventRow[]): string {
+  if (events.length === 0) return "";
+  const lines = ["", "# NEARBY MARKETING EVENTS", ""];
+  lines.push(
+    "Use these as planning context when relevant. Do not force a holiday angle if the user's request is unrelated.",
+  );
+  lines.push("");
+  for (const e of events) {
+    const date =
+      e.start_date === e.end_date ? e.start_date : `${e.start_date} to ${e.end_date}`;
+    const estimate = e.is_date_estimate ? " estimated date" : "";
+    const branches =
+      Array.isArray(e.branch_focus) && e.branch_focus.length > 0
+        ? ` Branch focus: ${e.branch_focus.join(", ")}.`
+        : "";
+    const notes = e.marketing_notes ? ` Notes: ${e.marketing_notes}` : "";
+    lines.push(
+      `- ${e.title} (${date}; ${e.importance}; ${e.event_type}${estimate}).${branches}${notes}`,
+    );
+  }
+  lines.push("");
+  return "\n" + lines.join("\n") + "\n";
+}
 
 async function loadRelevantProducts(
   db: DbClient,
@@ -343,6 +405,7 @@ function buildSystemPrompt(
   dnaMarkdown: string | null,
   entryContext?: EntryContext,
   productsBlock = "",
+  marketingEventsBlock = "",
 ): string {
   const baseVoice = `You are an AI assistant for Kayan Sweets, a Saudi confectionery retail chain.
 Brand voice: ${JSON.stringify(voiceConfig)}.
@@ -374,7 +437,7 @@ Always respect this voice. Provide bilingual output (Arabic + English) when gene
 
   switch (template) {
     case "generate_script":
-      return `${baseVoice}${dnaBlock}${productsSection}${briefBlock}
+      return `${baseVoice}${dnaBlock}${marketingEventsBlock}${productsSection}${briefBlock}
 Your task: write a 15-60 second short-form video script with a strong 3-second hook, clear product showcase, and CTA. Provide both Arabic and English versions with shot directions in [brackets].
 ${STRUCTURED_NOTE}
 
@@ -388,11 +451,11 @@ ${STRUCTURED_NOTE}
 [5-8 hashtags space-separated, mix of branded (#KayanSweets, #حلويات_كيان) and trending.]`;
 
     case "suggest_hooks":
-      return `${baseVoice}${dnaBlock}
+      return `${baseVoice}${dnaBlock}${marketingEventsBlock}
 Your task: provide 5 different opening hooks (first 3 seconds) that grab attention differently — curiosity, surprise, question, bold claim, relatable scenario. Numbered list, both languages.`;
 
     case "caption_hashtags":
-      return `${baseVoice}${dnaBlock}
+      return `${baseVoice}${dnaBlock}${marketingEventsBlock}
 Your task: write a platform-tailored caption with 5-8 relevant hashtags mixing branded and trending tags. Both languages.
 ${STRUCTURED_NOTE}
 
@@ -403,21 +466,21 @@ ${STRUCTURED_NOTE}
 [Space-separated hashtags.]`;
 
     case "content_gap_analysis":
-      return `${baseVoice}${dnaBlock}
+      return `${baseVoice}${dnaBlock}${marketingEventsBlock}
 Kayan content rules: 5 videos per week minimum, daily IG + Snap stories, balance between product showcase and trends.
 Your task: analyze the planned content and identify gaps. Suggest specific entries to fill them.`;
 
     case "trend_brief":
-      return `${baseVoice}${dnaBlock}
+      return `${baseVoice}${dnaBlock}${marketingEventsBlock}
 Your task: when given trending video formats or descriptions, suggest 3 ways Kayan can adapt each, keeping brand voice.`;
 
     case "monthly_report":
-      return `${baseVoice}${dnaBlock}
+      return `${baseVoice}${dnaBlock}${marketingEventsBlock}
 You are writing the monthly marketing report for Kayan Sweets leadership. Be data-forward, concise, action-oriented. Cover: 1) Content summary, 2) Engagement metrics, 3) Follower growth, 4) Ad performance, 5) Sales impact, 6) Insights & next steps.`;
 
     case "freeform":
     default:
-      return `${baseVoice}${dnaBlock}`;
+      return `${baseVoice}${dnaBlock}${marketingEventsBlock}`;
   }
 }
 
@@ -457,7 +520,7 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const openaiKey = Deno.env.get("OPENAI_API_KEY") ?? "";
-  const openaiModel = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o";
+  const openaiModel = Deno.env.get("OPENAI_MODEL") ?? "gpt-5.5";
 
   if (!openaiKey) return jsonError("INTERNAL_ERROR", "AI not configured.", 500);
 
@@ -472,6 +535,7 @@ Deno.serve(async (req) => {
     .single();
   const voiceConfig = (brand?.voice_config as Record<string, unknown>) ?? {};
   const dnaMarkdown = (brand?.dna_markdown as string | null) ?? null;
+  const brandIdForContext = (brand as { id?: string } | null)?.id ?? null;
 
   // Get or create conversation
   let conversationId = parsed.data.conversationId ?? null;
@@ -515,11 +579,34 @@ Deno.serve(async (req) => {
     if (branchRow?.id) resolvedBranchId = branchRow.id as string;
   }
 
+  // Resolve the entry target date for seasonal context. Inline generation now
+  // sends entryContext.targetDate directly; older/global panel calls can still
+  // be enriched by looking up the entry when contextType/contextId point to it.
+  let targetDateForEvents: string | null = parsed.data.entryContext?.targetDate ?? null;
+  if (!targetDateForEvents && parsed.data.contextType === "entry" && parsed.data.contextId) {
+    const { data: entryRow } = await db
+      .from("calendar_entries")
+      .select("target_date")
+      .eq("id", parsed.data.contextId)
+      .single();
+    targetDateForEvents = (entryRow as { target_date?: string } | null)?.target_date ?? null;
+  }
+
+  let marketingEventsBlock = "";
+  if (brandIdForContext) {
+    const nearbyEvents = await loadNearbyMarketingEvents(
+      db,
+      brandIdForContext,
+      targetDateForEvents,
+    );
+    marketingEventsBlock = buildMarketingEventsBlock(nearbyEvents);
+  }
+
   // Pull the branch-aware product slice for generate_script. Other templates
   // (caption_hashtags, suggest_hooks, etc.) skip this — only the script
   // template benefits from the catalog injection.
   let productsBlock = "";
-  const brandIdForProducts = (brand as { id?: string } | null)?.id ?? null;
+  const brandIdForProducts = brandIdForContext;
   if (parsed.data.promptTemplate === "generate_script" && brandIdForProducts) {
     const products = await loadRelevantProducts(
       db,
@@ -536,6 +623,7 @@ Deno.serve(async (req) => {
     dnaMarkdown,
     parsed.data.entryContext,
     productsBlock,
+    marketingEventsBlock,
   );
   const userContent = parsed.data.contextPayload
     ? `${parsed.data.userMessage}\n\nContext data: ${JSON.stringify(parsed.data.contextPayload)}`

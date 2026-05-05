@@ -47,8 +47,8 @@
 - Edge Function `budget-caps` — GET single (by brand+month), POST upsert by (brand_id, month)
 
 ## Chunk 10: AI Assistant (DONE)
-- Edge Function `ai-assistant` — POST proxy: validates Zod request → loads brand voice config + brand DNA → ensures `ai_conversations` row exists → loads prior `ai_messages` → builds system prompt by template (7 templates: generate_script, suggest_hooks, caption_hashtags, content_gap_analysis, trend_brief, monthly_report, freeform) → calls OpenAI `/v1/chat/completions` (model from `OPENAI_MODEL`, default `gpt-4o`) → persists user + assistant messages with `tokens_used` (prompt + completion)
-- `OPENAI_API_KEY` only read via `Deno.env.get` in the Edge Function — never returned in any response, never reaches the client bundle. `OPENAI_MODEL` is an optional override (defaults to `gpt-4o`)
+- Edge Function `ai-assistant` — POST proxy: validates Zod request → loads brand voice config + brand DNA → ensures `ai_conversations` row exists → loads prior `ai_messages` → builds system prompt by template (7 templates: generate_script, suggest_hooks, caption_hashtags, content_gap_analysis, trend_brief, monthly_report, freeform) → calls OpenAI `/v1/chat/completions` (model from `OPENAI_MODEL`, default `gpt-5.5`) → persists user + assistant messages with `tokens_used` (prompt + completion)
+- `OPENAI_API_KEY` only read via `Deno.env.get` in the Edge Function — never returned in any response, never reaches the client bundle. `OPENAI_MODEL` is an optional override (defaults to `gpt-5.5`)
 
 ## V1 COMPLETE
 - 17 migrations (extensions → AI conversations → today summary → campaign artifacts → budget summary)

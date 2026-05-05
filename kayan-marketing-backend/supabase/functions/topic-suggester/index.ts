@@ -71,6 +71,16 @@ interface TopicRow {
   pattern_id: string | null;
 }
 
+interface MarketingEventRow {
+  title: string;
+  event_type: string;
+  importance: string;
+  start_date: string;
+  end_date: string;
+  marketing_notes: string | null;
+  is_date_estimate: boolean;
+}
+
 interface OpenAIResponse {
   choices: Array<{ message?: { content?: string | null } }>;
   usage?: { total_tokens?: number };
@@ -88,6 +98,7 @@ function buildSuggesterPrompt(args: {
   recentEntries: CalendarEntryRow[];
   queuedTopics: TopicRow[];
   branches: BranchRow[];
+  upcomingEvents: MarketingEventRow[];
   count: number;
   occasionBias?: string;
   windowDays: number;
@@ -98,6 +109,7 @@ function buildSuggesterPrompt(args: {
     recentEntries,
     queuedTopics,
     branches,
+    upcomingEvents,
     count,
     occasionBias,
     windowDays,
@@ -146,6 +158,18 @@ function buildSuggesterPrompt(args: {
     ? queuedTopics.slice(0, 30).map((t) => `"${t.title}"`).join(", ")
     : "(none)";
 
+  const eventsLine = upcomingEvents.length > 0
+    ? upcomingEvents
+        .slice(0, 12)
+        .map((e) => {
+          const date = e.start_date === e.end_date ? e.start_date : `${e.start_date} to ${e.end_date}`;
+          const estimate = e.is_date_estimate ? ", estimated" : "";
+          const notes = e.marketing_notes ? ` - ${e.marketing_notes}` : "";
+          return `${e.title} (${date}, ${e.importance}${estimate})${notes}`;
+        })
+        .join("\n- ")
+    : "(none)";
+
   const dnaBlock = dnaMarkdown && dnaMarkdown.trim().length > 0
     ? `\n\n# BRAND DNA\n${dnaMarkdown}\n# END BRAND DNA\n`
     : "";
@@ -171,6 +195,8 @@ ${dnaBlock}
 # OPPORTUNITIES
 - Stale branches (NOT featured in ${windowDays}+ days, prioritize these): ${staleBranchLine}
 - Stale patterns (NOT used recently, prioritize these): ${stalePatternLine}
+- Upcoming marketing events in the next 90 days:
+- ${eventsLine}
 
 # AVOID
 - Topics already in queue (don't duplicate near-matches): ${queuedLine}
@@ -244,7 +270,7 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const openaiKey = Deno.env.get("OPENAI_API_KEY") ?? "";
-  const openaiModel = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o";
+  const openaiModel = Deno.env.get("OPENAI_MODEL") ?? "gpt-5.5";
   if (!openaiKey) return jsonError("INTERNAL_ERROR", "AI not configured.", 500);
 
   const db = createClient(supabaseUrl, serviceKey);
@@ -267,8 +293,12 @@ Deno.serve(async (req) => {
   const windowStart = new Date();
   windowStart.setUTCDate(windowStart.getUTCDate() - parsed.data.excludeRecentDays);
   const windowStartIso = isoDate(windowStart);
+  const todayIso = isoDate(new Date());
+  const eventWindowEnd = new Date();
+  eventWindowEnd.setUTCDate(eventWindowEnd.getUTCDate() + 90);
+  const eventWindowEndIso = isoDate(eventWindowEnd);
 
-  const [entriesRes, topicsRes, branchesRes] = await Promise.all([
+  const [entriesRes, topicsRes, branchesRes, eventsRes] = await Promise.all([
     db
       .from("calendar_entries")
       .select("id, title, pattern_id, branch_id, theme, target_date")
@@ -284,15 +314,25 @@ Deno.serve(async (req) => {
       .select("id, name, city")
       .eq("brand_id", brandId)
       .eq("is_active", true),
+    db
+      .from("marketing_events")
+      .select("title, event_type, importance, start_date, end_date, marketing_notes, is_date_estimate")
+      .eq("brand_id", brandId)
+      .eq("status", "active")
+      .gte("end_date", todayIso)
+      .lte("start_date", eventWindowEndIso)
+      .order("start_date", { ascending: true }),
   ]);
 
   if (entriesRes.error) return jsonError("INTERNAL_ERROR", entriesRes.error.message, 500);
   if (topicsRes.error) return jsonError("INTERNAL_ERROR", topicsRes.error.message, 500);
   if (branchesRes.error) return jsonError("INTERNAL_ERROR", branchesRes.error.message, 500);
+  if (eventsRes.error) return jsonError("INTERNAL_ERROR", eventsRes.error.message, 500);
 
   const recentEntries = (entriesRes.data ?? []) as CalendarEntryRow[];
   const queuedTopics = (topicsRes.data ?? []) as TopicRow[];
   const branchesRaw = (branchesRes.data ?? []) as Array<{ id: string; name: string; city: string }>;
+  const upcomingEvents = (eventsRes.data ?? []) as MarketingEventRow[];
 
   // Compute last_featured_date per branch from the recent entries.
   const lastFeaturedMap = new Map<string, string>();
@@ -316,6 +356,7 @@ Deno.serve(async (req) => {
     recentEntries,
     queuedTopics,
     branches,
+    upcomingEvents,
     count: parsed.data.count,
     occasionBias: parsed.data.occasion,
     windowDays: parsed.data.excludeRecentDays,
