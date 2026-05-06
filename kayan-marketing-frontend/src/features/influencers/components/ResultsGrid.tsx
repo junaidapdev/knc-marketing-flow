@@ -1,6 +1,7 @@
-import { Loader2 } from "lucide-react";
 import type { CreatorResult } from "../../../types/influencer";
 import { ResultCard, type CardAction } from "./ResultCard";
+import { CardSkeletonGrid } from "./CardSkeleton";
+import { EstimatedBadge } from "./EstimatedBadge";
 
 interface Props {
   results: ReadonlyArray<CreatorResult>;
@@ -10,12 +11,16 @@ interface Props {
   // Lets each page (Search vs Saved) compose the per-card action without
   // duplicating the grid layout or empty/loading/error states.
   renderAction: (creator: CreatorResult) => CardAction;
-  // Optional override for the loading + empty messages so the Saved view
-  // can show its own copy.
-  loadingMessage?: string;
+  // Optional override for the empty + pre-search messages so the Saved
+  // view can show its own copy. The disclaimer strip is rendered for both
+  // pages — toggle off only if a parent has its own.
   emptyMessage?: string;
   preSearchMessage?: string;
+  showDisclaimer?: boolean;
 }
+
+const DEFAULT_DISCLAIMER =
+  "Audience demographics on these cards are estimates from third-party scrapers, not the platform's official analytics.";
 
 export function ResultsGrid({
   results,
@@ -23,9 +28,9 @@ export function ResultsGrid({
   hasSearched,
   errorMessage,
   renderAction,
-  loadingMessage = "Searching creators…",
   emptyMessage = "No creators matched these filters. Try widening platforms, follower range, or content categories.",
   preSearchMessage = "Set your filters and run a search to see creators here.",
+  showDisclaimer = true,
 }: Props): JSX.Element {
   if (errorMessage) {
     return (
@@ -37,9 +42,9 @@ export function ResultsGrid({
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-[13px] text-ink-3 px-1 py-3">
-        <Loader2 size={14} className="animate-spin" />
-        {loadingMessage}
+      <div className="space-y-3">
+        {showDisclaimer && <DisclaimerStrip />}
+        <CardSkeletonGrid />
       </div>
     );
   }
@@ -61,14 +66,26 @@ export function ResultsGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-      {results.map((creator) => (
-        <ResultCard
-          key={creator.id}
-          creator={creator}
-          action={renderAction(creator)}
-        />
-      ))}
+    <div className="space-y-3">
+      {showDisclaimer && <DisclaimerStrip />}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {results.map((creator) => (
+          <ResultCard
+            key={creator.id}
+            creator={creator}
+            action={renderAction(creator)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DisclaimerStrip(): JSX.Element {
+  return (
+    <div className="flex items-center gap-2 text-[11.5px] text-ink-3 px-1">
+      <EstimatedBadge title={DEFAULT_DISCLAIMER} />
+      <span className="leading-snug">{DEFAULT_DISCLAIMER}</span>
     </div>
   );
 }

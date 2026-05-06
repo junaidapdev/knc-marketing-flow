@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AlertTriangle, Check } from "lucide-react";
 import { FilterForm } from "../features/influencers/components/FilterForm";
 import { ResultsGrid } from "../features/influencers/components/ResultsGrid";
+import { ResultsErrorBoundary } from "../features/influencers/components/ResultsErrorBoundary";
 import { EstimateCostModal } from "../features/influencers/components/EstimateCostModal";
 import { SearchCostFooter } from "../features/influencers/components/SearchCostFooter";
 import { InfluencersTabs } from "../features/influencers/components/InfluencersTabs";
@@ -168,13 +169,16 @@ export default function InfluencerSearchPage(): JSX.Element {
           {failureReasons.length > 0 && (
             <FailureStrip reasons={failureReasons} />
           )}
-          <ResultsGrid
-            results={results}
-            isLoading={search.isPending}
-            hasSearched={hasSearched}
-            errorMessage={errorMessage}
-            renderAction={renderAction}
-          />
+          <ResultsErrorBoundary>
+            <ResultsGrid
+              results={results}
+              isLoading={search.isPending}
+              hasSearched={hasSearched}
+              errorMessage={errorMessage}
+              renderAction={renderAction}
+              preSearchMessage="Set your filters and run a search to discover GCC creators across TikTok, Instagram, and YouTube."
+            />
+          </ResultsErrorBoundary>
           {cost && !search.isPending && results.length > 0 && (
             <SearchCostFooter cost={cost} />
           )}
@@ -203,7 +207,7 @@ function ToastBanner({ toast }: { toast: Toast }): JSX.Element {
   return (
     <div
       role={isSuccess ? "status" : "alert"}
-      className={`fixed bottom-4 right-4 z-50 max-w-sm rounded-md shadow-lg px-3 py-2 text-[13px] flex items-start gap-2 ${
+      className={`fixed bottom-4 right-4 left-4 sm:left-auto z-50 sm:max-w-sm rounded-md shadow-lg px-3 py-2 text-[13px] flex items-start gap-2 ${
         isSuccess
           ? "bg-sage text-[#2C5530] border border-sage-deep/30"
           : "bg-rose text-[#6E2A35] border border-rose-deep/30"

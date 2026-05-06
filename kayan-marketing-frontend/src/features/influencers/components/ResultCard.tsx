@@ -1,7 +1,11 @@
 import { Bookmark, BookmarkCheck, Trash2, User } from "lucide-react";
 import { PLATFORM_LABELS } from "../../../constants/influencer";
-import type { CreatorResult } from "../../../types/influencer";
+import type {
+  CreatorAudienceDemographics,
+  CreatorResult,
+} from "../../../types/influencer";
 import { formatFollowerCount, formatEngagementRate } from "../utils/format";
+import { EstimatedBadge } from "./EstimatedBadge";
 
 // Per-platform chip palette — reuses the project's existing color-named
 // utility classes from index.css so the cards visually rhyme with the
@@ -121,10 +125,41 @@ export function ResultCard({ creator, action }: Props): JSX.Element {
         </p>
       )}
 
+      <DemographicsLine
+        demographics={creator.audienceDemographics}
+        isEstimated={creator.isEstimatedDemographics}
+      />
+
       <div className="flex justify-end pt-1 border-t border-line">
         <ActionButton action={action} />
       </div>
     </article>
+  );
+}
+
+// Compact one-line audience snapshot — top countries (when present)
+// rendered with the EstimatedBadge so the user always knows the numbers
+// are scraper estimates, not platform analytics. Hidden when the
+// demographics object has nothing renderable.
+function DemographicsLine({
+  demographics,
+  isEstimated,
+}: {
+  demographics: CreatorAudienceDemographics;
+  isEstimated: boolean;
+}): JSX.Element | null {
+  const top = demographics.topCountries ?? [];
+  if (top.length === 0) return null;
+  const headline = top
+    .slice(0, 3)
+    .map((c) => `${Math.round(c.share)}% ${c.country.toUpperCase()}`)
+    .join(", ");
+  return (
+    <div className="flex items-center gap-2 flex-wrap text-[11.5px] text-ink-3 leading-snug">
+      <span className="font-medium text-ink-2">Audience:</span>
+      <span>{headline}</span>
+      {isEstimated && <EstimatedBadge />}
+    </div>
   );
 }
 

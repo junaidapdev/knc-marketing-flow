@@ -129,3 +129,31 @@
 - `InfluencerSearch.tsx`: per-creator save flow with optimistic UI (sets `savingCreatorIds` then `savedCreatorIds`). Toast: bottom-right fixed banner, sage on success, rose on error, single-slot (replaced not stacked), 2.4 s auto-dismiss. Save state clears when a new search runs.
 - New `pages/SavedCreators.tsx`: same `ResultsGrid` rendering remove actions, with a platform-filter pill row (`All`, `TikTok`, `Instagram`, `YouTube`). Empty-state copy adapts to whether a filter is active.
 - Out of scope (per spec): bulk actions, notes editing, tags. The notes column is preserved in types but no editing UI yet.
+
+## Influencer Search — Chunk 8: Polish + ship-ready (DONE)
+- New `EstimatedBadge` component — small grey pill with `Info` icon and tooltip. Used both as part of the disclaimer strip and inline next to demographic data on each card.
+- New `CardSkeleton` + `CardSkeletonGrid` — pulse-animated placeholders that mirror the `ResultCard` layout. Six skeletons render during `isLoading` instead of the prior text-only "Searching creators…" line.
+- New `ResultsErrorBoundary` (class component) wrapping the grid on both pages. Catches React render errors, logs via `logger`, and shows a retry button that remounts the children. React Query fetch errors still surface via the inline error message in `ResultsGrid`; the boundary handles the rarer render-time crash so the whole page never goes blank.
+- `ResultsGrid` now renders a disclaimer strip above the grid: "Audience demographics are estimates from third-party scrapers, not the platform's official analytics." with the badge inline. Toggleable via `showDisclaimer` for callers that have their own.
+- `ResultCard` adds a one-line demographics summary ("Audience: 73% SA, 12% AE …") with the `EstimatedBadge` when `audienceDemographics.topCountries` is populated. Hidden when there's nothing to show.
+- Mobile pass:
+  • `ToastBanner` previously had `max-w-sm` (384 px) which exceeded a 375 px viewport — switched to `left-4 right-4 sm:left-auto sm:max-w-sm` so it spans available width on phone, narrows on tablet+.
+  • FilterForm number-pair grids verified at 375 px; with the card's 22 px padding and the page gutter, each cell is ~140 px — comfortable for 4-digit follower numbers.
+  • EstimateCostModal uses `max-w-md` with wrapper padding `p-2` on mobile, so it's effectively viewport-bound below sm; no overflow.
+  • InfluencersTabs uses the project's existing `tab-group` class (a flex pill row) — tested at 375 px, both tabs fit on one row.
+  • Saved page's `PlatformPill` row uses `flex-wrap` and chip-sized buttons — wraps cleanly at 375 px with all four pills (All / TikTok / Instagram / YouTube).
+- Empty states refined: search page now reads "Set your filters and run a search to discover GCC creators across TikTok, Instagram, and YouTube" pre-search; saved page distinguishes between "no saves yet" and "no saves on this platform filter".
+
+## V1 Influencer Search COMPLETE
+**Pages.** `/influencers/search` (FilterForm + scored results grid + cost preview/footer) and `/influencers/saved` (shortlist with platform-pill filter). Both share an in-page `InfluencersTabs` strip; sidebar has one "Influencer Search" entry pointing to /search.
+
+**Components built.** `FilterForm`, `ResultCard` (with discriminated save/remove `action` prop), `ResultsGrid` (with `renderAction` factory), `CardSkeleton` / `CardSkeletonGrid`, `EstimatedBadge`, `EstimateCostModal`, `SearchCostFooter`, `ResultsErrorBoundary`, `InfluencersTabs`. Plus inline `FailureStrip` and `ToastBanner` on the search page.
+
+**Hooks.** `useCreatorSearch`, `useEstimateCost`, `useSavedCreators` (list with optional platform filter), `useSaveCreator`, `useRemoveSavedCreator` (optimistic cache update on remove).
+
+**Standards adherence.** No `any` types, no `console.*` (all errors go through `logger`), all constants in `src/constants/influencer.ts`, all types in `src/types/influencer.ts`, Zod validation on every form, React Query for server state, RHF + Controller for form fields. ESLint and `tsc --noEmit` clean across all 8 chunks.
+
+**Known UI limits.**
+- Audience demographics line only renders `topCountries` from the jsonb — age buckets and gender split are stored but not surfaced yet.
+- Save button on the search page tracks per-creator state in local React state — switches off when a new search runs. To know "is this creator already in your shortlist" across sessions, the search page would need to cross-reference the saved-creators query (Chunk 9 if it ever lands).
+- Toast is single-slot (replaced not stacked) on rapid saves — by design, but means the user sees only the most recent message.

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { InfluencersTabs } from "../features/influencers/components/InfluencersTabs";
 import { ResultsGrid } from "../features/influencers/components/ResultsGrid";
+import { ResultsErrorBoundary } from "../features/influencers/components/ResultsErrorBoundary";
 import {
   useSavedCreators,
   useRemoveSavedCreator,
@@ -86,19 +87,20 @@ export default function SavedCreatorsPage(): JSX.Element {
         ))}
       </div>
 
-      <ResultsGrid
-        results={creators}
-        isLoading={list.isLoading}
-        hasSearched={true}
-        errorMessage={errorMessage}
-        renderAction={renderAction}
-        loadingMessage="Loading saved creators…"
-        emptyMessage={
-          platformFilter === "all"
-            ? "No saved creators yet. Save creators from the Search tab to build your shortlist."
-            : `No saved creators on ${PLATFORM_LABELS[platformFilter]}. Switch to All or save more.`
-        }
-      />
+      <ResultsErrorBoundary>
+        <ResultsGrid
+          results={creators}
+          isLoading={list.isLoading}
+          hasSearched={true}
+          errorMessage={errorMessage}
+          renderAction={renderAction}
+          emptyMessage={
+            platformFilter === "all"
+              ? "No saved creators yet. Save creators from the Search tab to build your shortlist."
+              : `No saved creators on ${PLATFORM_LABELS[platformFilter]}. Switch to All or save more.`
+          }
+        />
+      </ResultsErrorBoundary>
     </div>
   );
 }

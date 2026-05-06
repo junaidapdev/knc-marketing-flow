@@ -129,3 +129,34 @@ Limitations to revisit:
   • `DELETE /saved-creators/:id` — hard delete, 204 No Content.
 - V1 single-tenant brand resolution mirrors `search-creators` (first brand by `created_at`).
 - All standards: Zod validation, no inline magic strings, response/case helpers reused.
+
+## Influencer Search — Chunk 8: Polish + ship-ready (DONE)
+- RLS audit on the four feature tables: `creator_searches`, `creator_results`, `saved_creators`, `creator_search_costs`. All four follow the V1 single-tenant pattern from migration 0039 / 0040 / 0041:
+  • RLS enabled (`alter table … enable row level security`)
+  • One policy per table: `for all to authenticated using (true) with check (true)`
+  • No policy targets the `anon` role → anon reads/writes are denied by default
+  • Cross-brand isolation is not enforced at the RLS layer (single-tenant V1, one brand row exists). When multi-tenant lands, the policies will need to filter by `brand_id = (auth.jwt() ->> 'brand_id')::uuid` or similar.
+- No new migrations or backend code — the polish chunk is frontend-only on the backend side, but the audit closes the loop.
+
+## V1 Influencer Search COMPLETE
+**Scope.** Searchable creator-discovery module on top of the existing Kayan Marketing OS. Filters by location (GCC), audience demographics, engagement metrics, content categories, platform, and language. AI-scored for fit with the Kayan brand. Persistent shortlist via Saved Creators. Per-run cost preview + audit.
+
+**Supported platforms.** TikTok, Instagram, YouTube — one Apify actor per platform pinned in `_shared/influencer-actors.ts`.
+
+**Migrations.** 0039 (4 tables + RLS) → 0040 (`failure_reasons text[]`) → 0041 (Claude token columns). All on V1 `authenticated_full_access` RLS.
+
+**Edge Functions.** `search-creators` (orchestrator: actor fan-out → dedupe → cap → Claude scoring → cost compute → persist → return), `estimate-creator-search` (pure-math cost preview), `saved-creators` (CRUD shortlist).
+
+**Known limits.**
+- TikTok and Instagram actors don't natively support follower min/max — applied client-side after the actor returns. Tight follower thresholds may yield few results; widen the range or bump `MAX_PROFILES_PER_ACTOR`.
+- YouTube channel discovery dedupes from video search results — channels with one viral matching video can outrank channels that genuinely match the keyword across their catalog.
+- Audience demographics are scraper estimates, not platform analytics. Surfaced in the UI with an "Estimated" badge + disclaimer strip. The `audience_demographics` jsonb is currently sparse; only `topCountries` is rendered when present.
+- Apify rate limits apply on the free tier — heavy use may need a paid Apify plan.
+- Claude scoring depends on Brand DNA being populated on the brand row. If `brands.dna_markdown` is empty, the rubric still works but scores will be more generic.
+
+**Ops notes.**
+- **Swap actor IDs** — single source of truth at `kayan-marketing-backend/supabase/functions/_shared/influencer-actors.ts`. Change a value, redeploy `search-creators`, done.
+- **Update pricing** — `kayan-marketing-backend/supabase/functions/_shared/influencer-pricing.ts`. Apify per-result, actor-start fees, Claude Haiku per-million-token rates all live here. Affects both the estimate endpoint and the actual-cost calculation in `search-creators`.
+- **Monitor cost** — every completed run writes a row to `creator_search_costs`. Sum `total_cost_usd` over a date range to track spend; group by month or by brand_id (via the `creator_searches` join) for breakdowns.
+- **Required secrets** — `APIFY_API_TOKEN` (Apify), `ANTHROPIC_API_KEY` (Claude). Set via `supabase secrets set …`.
+- **Token usage audit** — `creator_searches.claude_prompt_tokens` + `claude_completion_tokens` per row; multiply by current Haiku rates if Anthropic re-prices.
