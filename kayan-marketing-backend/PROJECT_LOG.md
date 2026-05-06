@@ -69,3 +69,22 @@
 - All four tables follow the V1 single-tenant `authenticated_full_access` RLS stance and cascade on brand/search delete
 - Indexes: `creator_results(search_id)`, `saved_creators(brand_id, created_at desc)`, `creator_search_costs(search_id)`, `creator_searches(brand_id, created_at desc)`
 - No Edge Functions or Apify integration yet — those start in Chunk 3
+
+## Influencer Search — Chunk 3+4: TikTok + Instagram + YouTube via Apify (DONE)
+- Combined Chunk 3 (TikTok) and Chunk 4 (Instagram + YouTube) into one commit since the partial Chunk 3 work (only `_shared/influencer-actors.ts` + `_shared/apify.ts` were written) was never committed before Chunk 4 started.
+- Migration 0040: `failure_reasons text[]` on `creator_searches` for partial-failure UX (one platform errors but others succeed).
+- New `_shared/apify.ts`: thin wrapper around `/v2/acts/{actor}/run-sync-get-dataset-items`. Token passed as argument (never logged), URL-form actor IDs translated from human `username/name` to Apify's `username~name`. Defensive 200-char truncation on upstream error bodies.
+- New `_shared/influencer-actors.ts` pinning all three actor IDs:
+  • TikTok → `clockworks/tiktok-scraper` (4.75★ / 276 reviews / 171K users / 11K MAU). Supports keyword search + `proxyCountryCode` covering every GCC country. Same actor performance-ingest already uses for known-profile scraping.
+  • Instagram → `apify/instagram-scraper` (official Apify, 4.7★ / 398 reviews / 251K users / 99.9% success). `search` + `searchType: "user"` is the keyword discovery mode.
+  • YouTube → `streamers/youtube-scraper` (4.7★ / 154 reviews / 75K users). YouTube on Apify has no native "search channels" actor — this video-search actor returns channel metadata on each video result; the normalizer dedupes by channelId so each creator appears once.
+- New Edge Function `search-creators` (the 13th):
+  • Per-platform module files: `tiktok.ts`, `instagram.ts`, `youtube.ts`. Each exports `buildInput(filters)` (actor-specific input shape) and `normalize(items, searchId)` (snake_case `creator_results` row inserts).
+  • Shared `types.ts` with the `filtersSchema` Zod definition + inferred `CreatorSearchFilters` type. Mirror of the frontend's `CreatorSearchFilters` since Edge Functions can't import from `src/`.
+  • Flow: validate body → resolve V1 single-tenant brand → insert `creator_searches` row in `running` status → fan out to selected platforms in parallel via `Promise.allSettled` → collect successes/failures → apply follower min/max thresholds (TikTok and Instagram actors don't natively support them) → dedupe by `(platform, handle)` → sort by `follower_count desc` → cap at 100 → bulk insert `creator_results` → update search row to `completed`/`failed` with `result_count` + `failure_reasons` → read back inserted rows for response.
+  • If every platform fails: status `failed` and 500 response with `failureReasons` in details. If some succeed: status `completed`, results returned, `failureReasons` listed in the response body for the UI to surface.
+- All env access via `Deno.env.get`. APIFY_API_TOKEN never returned in any response, never logged.
+
+Limitations to revisit:
+- TikTok and Instagram actors don't natively support follower min/max — applied client-side after the actors return, so we may filter away most of a small result set. Bumping `MAX_PROFILES_PER_ACTOR` (currently 40) is the lever if recall feels weak.
+- YouTube discovery quality depends on video-search relevance scoring; channels with one viral matching video can rank above channels that genuinely match the keyword across their catalog. Acceptable for V1.

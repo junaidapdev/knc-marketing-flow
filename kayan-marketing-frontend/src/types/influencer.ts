@@ -84,3 +84,12 @@ export interface CreatorSearchCost {
   totalCostUsd: number;
   createdAt: string;
 }
+
+// Wire shape returned by /search-creators. failureReasons holds per-platform
+// error strings for partial-failure surfacing in the UI ("Couldn't fetch
+// from <platform>"). Empty array on full success.
+export interface CreatorSearchResponse {
+  searchId: string;
+  results: CreatorResult[];
+  failureReasons: string[];
+}

@@ -96,3 +96,10 @@
 - `pages/InfluencerSearch.tsx` rewired into a two-column layout (`lg:grid-cols-[360px_1fr]`); collapses to single column below `lg`. Stale-result preservation: latest successful results persist across rerenders that aren't part of a new search
 - No backend wiring, no real persistence — Save button local-only; mutation never hits the network. All standards observed (no `any`, Zod validates before submit, no `console.*`, constants/types modular)
 - `npm run build`, `eslint`, and `tsc --noEmit` all clean
+
+## Influencer Search — Chunk 3+4: Real Apify backend wiring (DONE)
+- `useCreatorSearch` swapped from the 600 ms mock to a real `apiRequest("/search-creators", ...)` call. Returns the new `CreatorSearchResponse` shape `{ searchId, results, failureReasons }`. Mock dataset (`data/mock-creators.ts`) is left in place as dead code in case it's useful for storybook/tests later — easy to delete in a polish pass.
+- New `CreatorSearchResponse` type added to `types/influencer.ts` covering the `failureReasons: string[]` partial-failure surface.
+- `InfluencerSearch.tsx` now renders an inline `FailureStrip` (yellow-bg warning style matching the existing `TimelineWarning`) above the results grid whenever `failureReasons` is non-empty. Each reason is a `"<platform>: <message>"` string truncated to 140 chars; the platform name is rendered in a mono chip for scannability.
+- All three platform checkboxes stay enabled (Chunk 2 never gated them, since the partial-Chunk-3 work merged straight into Chunk 4).
+- Standards observed: no `any`, no `console.*`, types modular, Zod still validates the form. `npm run build`, `eslint`, and `tsc --noEmit` all clean.
