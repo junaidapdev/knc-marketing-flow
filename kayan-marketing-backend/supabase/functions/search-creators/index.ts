@@ -15,6 +15,7 @@ import {
 import * as tiktok from "./tiktok.ts";
 import * as instagram from "./instagram.ts";
 import * as youtube from "./youtube.ts";
+import { loadBrandDna, scoreCreators, type ScoringOutcome } from "./score.ts";
 
 const RESULT_CAP = 100;
 
@@ -176,16 +177,83 @@ Deno.serve(async (req) => {
     }
   });
 
-  // Apply follower thresholds → dedupe → sort by follower_count desc → cap
+  // Apply follower thresholds → dedupe → sort by follower_count desc → cap.
+  // Cap before scoring so the Claude call never exceeds the documented
+  // 100-creator budget.
   const filtered = applyFollowerThresholds(successes, parsedBody);
   const deduped = dedupeByPlatformHandle(filtered);
   deduped.sort((a, b) => b.follower_count - a.follower_count);
   const capped = deduped.slice(0, RESULT_CAP);
 
-  if (capped.length > 0) {
+  // Chunk 5: Claude-based fit scoring. The scoring module handles its own
+  // failure modes (HTTP error throws; JSON parse error → all 0s with
+  // rationale "AI scoring failed"). HTTP failures we treat the same way
+  // here so a transient Anthropic outage never tanks the whole search.
+  const failureReasons = failures.map((f) => `${f.platform}: ${f.message}`);
+  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+  let scoring: ScoringOutcome;
+  if (capped.length === 0) {
+    scoring = {
+      scored: [],
+      promptTokens: 0,
+      completionTokens: 0,
+      parseFailed: false,
+    };
+  } else if (!anthropicKey) {
+    scoring = {
+      scored: capped.map((c) => ({
+        ...c,
+        fit_score: 0,
+        fit_rationale: "AI scoring not configured",
+      })),
+      promptTokens: 0,
+      completionTokens: 0,
+      parseFailed: false,
+    };
+    failureReasons.push("scoring: ANTHROPIC_API_KEY not configured");
+  } else {
+    const brandDna = await loadBrandDna(db, brandId);
+    try {
+      scoring = await scoreCreators(
+        capped,
+        parsedBody,
+        brandDna,
+        anthropicKey,
+      );
+      if (scoring.parseFailed) {
+        failureReasons.push("scoring: model returned unparseable JSON");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      failureReasons.push(`scoring: ${msg.slice(0, 200)}`);
+      scoring = {
+        scored: capped.map((c) => ({
+          ...c,
+          fit_score: 0,
+          fit_rationale: "AI scoring failed",
+        })),
+        promptTokens: 0,
+        completionTokens: 0,
+        parseFailed: true,
+      };
+    }
+  }
+
+  // Sort by fit_score desc, ties broken by engagement_rate desc, then
+  // follower_count desc. This is the order returned to the frontend; the
+  // read-back query below mirrors it so the response is consistent.
+  scoring.scored.sort((a, b) => {
+    const sDiff = (b.fit_score ?? 0) - (a.fit_score ?? 0);
+    if (sDiff !== 0) return sDiff;
+    const eDiff = (b.engagement_rate ?? 0) - (a.engagement_rate ?? 0);
+    if (eDiff !== 0) return eDiff;
+    return b.follower_count - a.follower_count;
+  });
+
+  if (scoring.scored.length > 0) {
     const { error: insertResultsErr } = await db
       .from("creator_results")
-      .insert(capped);
+      .insert(scoring.scored);
     if (insertResultsErr) {
       await db
         .from("creator_searches")
@@ -198,7 +266,6 @@ Deno.serve(async (req) => {
     }
   }
 
-  const failureReasons = failures.map((f) => `${f.platform}: ${f.message}`);
   const allPlatformsFailed = failures.length === platforms.length;
   const finalStatus = allPlatformsFailed ? "failed" : "completed";
 
@@ -206,8 +273,10 @@ Deno.serve(async (req) => {
     .from("creator_searches")
     .update({
       status: finalStatus,
-      result_count: capped.length,
+      result_count: scoring.scored.length,
       failure_reasons: failureReasons,
+      claude_prompt_tokens: scoring.promptTokens,
+      claude_completion_tokens: scoring.completionTokens,
     })
     .eq("id", searchId);
 
@@ -221,11 +290,14 @@ Deno.serve(async (req) => {
   }
 
   // Read back inserted rows so the response carries server-generated ids
-  // and created_at — keeps the frontend type aligned with the DB shape.
+  // and created_at. Multi-key order mirrors the in-memory sort so callers
+  // see the same ranking the scoring pass produced.
   const { data: insertedRows, error: readErr } = await db
     .from("creator_results")
     .select("*")
     .eq("search_id", searchId)
+    .order("fit_score", { ascending: false, nullsFirst: false })
+    .order("engagement_rate", { ascending: false, nullsFirst: false })
     .order("follower_count", { ascending: false });
   if (readErr) {
     return jsonError("INTERNAL_ERROR", readErr.message, 500);

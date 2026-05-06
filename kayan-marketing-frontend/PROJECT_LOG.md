@@ -103,3 +103,9 @@
 - `InfluencerSearch.tsx` now renders an inline `FailureStrip` (yellow-bg warning style matching the existing `TimelineWarning`) above the results grid whenever `failureReasons` is non-empty. Each reason is a `"<platform>: <message>"` string truncated to 140 chars; the platform name is rendered in a mono chip for scannability.
 - All three platform checkboxes stay enabled (Chunk 2 never gated them, since the partial-Chunk-3 work merged straight into Chunk 4).
 - Standards observed: no `any`, no `console.*`, types modular, Zod still validates the form. `npm run build`, `eslint`, and `tsc --noEmit` all clean.
+
+## Influencer Search — Chunk 5: Claude-scored creator ranking (DONE)
+- `ResultCard` now renders a real `Fit score` chip (color-coded per Chunk 5 spec: ≥80 emerald via `bg-sage`, ≥60 yellow via `bg-yellow`, else neutral `bg-cream-2`). Chip label is the integer 0–100, hover shows the rationale.
+- New full-width italic `rationale` line below the metrics row — surfaces Claude's one-sentence "why this score" verdict. Hidden when the rationale is null.
+- Cards render in the order returned by the backend (already sorted `fit_score desc, engagement_rate desc, follower_count desc`); no client-side re-sorting.
+- All standards observed (no `any`, no `console.*`, no inline magic numbers). `npm run build`, `eslint`, and `tsc --noEmit` clean.

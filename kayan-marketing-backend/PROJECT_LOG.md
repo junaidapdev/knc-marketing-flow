@@ -88,3 +88,21 @@
 Limitations to revisit:
 - TikTok and Instagram actors don't natively support follower min/max — applied client-side after the actors return, so we may filter away most of a small result set. Bumping `MAX_PROFILES_PER_ACTOR` (currently 40) is the lever if recall feels weak.
 - YouTube discovery quality depends on video-search relevance scoring; channels with one viral matching video can rank above channels that genuinely match the keyword across their catalog. Acceptable for V1.
+
+## Influencer Search — Chunk 5: Claude-scored creator ranking via Brand DNA (DONE)
+- Migration 0041: `claude_prompt_tokens` + `claude_completion_tokens` integer columns on `creator_searches`. Chunk 6 will multiply these by Haiku per-token pricing for the cost audit.
+- New `search-creators/score.ts`:
+  • `loadBrandDna(db, brandId)` — reads `brands.dna_markdown`, mirrors the loader pattern from `ai-assistant/index.ts`.
+  • `buildScoringSystemPrompt(brandDna, filters)` — fixed scoring rubric (audience alignment / category fit / authenticity / brand safety, 0-100 scale) + Brand DNA + filter context. Strict-JSON output rules baked in.
+  • `buildScoringUserMessage(creators)` — compact JSON of the merged set (handle, platform, displayName, bio sliced to 200 chars, followers, engagement, language, country). Skips heavy raw payload to keep prompt tokens predictable.
+  • `scoreCreators(...)` — calls Anthropic `/v1/messages` directly (model `claude-haiku-4-5-20251001`, version `2023-06-01`, max 6000 output tokens). Parses the response JSON array (regex pulls the first `[…]` if Claude added chatter), validates each item, clamps scores to 0-100 + truncates rationale to 140 chars. On parse failure: every creator gets score 0 + rationale "AI scoring failed".
+- `search-creators/index.ts` orchestration (after merge → dedupe → cap):
+  • If `ANTHROPIC_API_KEY` not configured → score 0 + rationale "AI scoring not configured", failure_reasons records the gap.
+  • If Anthropic HTTP throws → catch + score 0 + rationale "AI scoring failed", failure_reasons records the error.
+  • If parse fails → same "AI scoring failed" path, failure_reasons records "scoring: model returned unparseable JSON".
+  • In-memory sort by `fit_score desc, engagement_rate desc, follower_count desc`.
+  • Insert into creator_results with the scored fields populated.
+  • Update creator_searches with `claude_prompt_tokens` + `claude_completion_tokens` from Anthropic's `usage.input_tokens` / `output_tokens`.
+  • Read-back query mirrors the in-memory sort so the response order is consistent.
+- `NormalizedCreator` type extended with optional `fit_score` + `fit_rationale` so the platform normalizers stay agnostic and only the score module writes them.
+- All env access via `Deno.env.get`. ANTHROPIC_API_KEY never returned in any response or logged. Brand DNA never echoed back to the client.

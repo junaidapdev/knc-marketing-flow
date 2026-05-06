@@ -52,6 +52,11 @@ export interface NormalizedCreator {
   audience_demographics: Record<string, unknown>;
   raw: Record<string, unknown>;
   is_estimated_demographics: boolean;
+  // Populated by the Chunk 5 scoring pass after merge + dedupe + cap. The
+  // platform normalizers leave them undefined so the score module is the
+  // sole writer.
+  fit_score?: number | null;
+  fit_rationale?: string | null;
 }
 
 export interface PlatformHandler {

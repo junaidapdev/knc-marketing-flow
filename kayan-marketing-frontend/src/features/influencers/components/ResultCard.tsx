@@ -13,6 +13,15 @@ const PLATFORM_CHIP: Record<CreatorResult["platform"], string> = {
   youtube: "bg-rose text-[#6E2A35]",
 };
 
+// Score chip color thresholds, per Chunk 5 spec:
+//   ≥80 → emerald (sage), ≥60 → yellow, else → neutral.
+function scoreChipClass(score: number | null): string {
+  if (score === null) return "bg-cream-2 text-ink-3";
+  if (score >= 80) return "bg-sage text-[#2C5530]";
+  if (score >= 60) return "bg-yellow text-obsidian";
+  return "bg-cream-2 text-ink-2";
+}
+
 interface Props {
   creator: CreatorResult;
 }
@@ -21,6 +30,10 @@ export function ResultCard({ creator }: Props): JSX.Element {
   // Chunk 2: Save is a no-op. Local state flips the icon so the affordance
   // is visible during the design pass; persistence lands in Chunk 7.
   const [isSavedLocal, setIsSavedLocal] = useState(false);
+
+  const score = creator.fitScore;
+  const rationale = creator.fitRationale;
+  const scoreLabel = score === null ? "—" : String(score);
 
   return (
     <article className="card flex flex-col gap-3">
@@ -77,12 +90,24 @@ export function ResultCard({ creator }: Props): JSX.Element {
           </span>
         </div>
         <div className="flex flex-col">
-          <span className="text-ink-3 text-[11px]">Score</span>
-          <span className="text-ink-3 font-semibold" title="AI fit score lands in Chunk 5">
-            —
+          <span className="text-ink-3 text-[11px]">Fit score</span>
+          <span
+            className={`chip ${scoreChipClass(score)} font-semibold`}
+            title={rationale ?? undefined}
+          >
+            {scoreLabel}
           </span>
         </div>
       </div>
+
+      {rationale && (
+        <p
+          className="text-[12px] text-ink-2 italic leading-snug"
+          title={rationale}
+        >
+          {rationale}
+        </p>
+      )}
 
       <div className="flex justify-end pt-1 border-t border-line">
         <button
