@@ -74,6 +74,10 @@ export interface SavedCreator {
   savedBy: string | null;
   notes: string | null;
   createdAt: string;
+  // Populated by GET /saved-creators (list) + POST /saved-creators
+  // responses — the row is joined to the creator_results table so the
+  // saved view doesn't need a second round trip.
+  creatorResult: CreatorResult;
 }
 
 export interface CreatorSearchCost {

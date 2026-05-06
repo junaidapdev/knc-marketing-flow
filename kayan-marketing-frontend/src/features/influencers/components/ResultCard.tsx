@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Bookmark, BookmarkCheck, User } from "lucide-react";
+import { Bookmark, BookmarkCheck, Trash2, User } from "lucide-react";
 import { PLATFORM_LABELS } from "../../../constants/influencer";
 import type { CreatorResult } from "../../../types/influencer";
 import { formatFollowerCount, formatEngagementRate } from "../utils/format";
@@ -22,15 +21,28 @@ function scoreChipClass(score: number | null): string {
   return "bg-cream-2 text-ink-2";
 }
 
+// Discriminated `action` prop: each card hosts exactly one of these
+// flows. The Search page passes `save`; the Saved page passes `remove`.
+// Keeping them in one component avoids two near-identical card layouts.
+interface SaveAction {
+  kind: "save";
+  isSaved: boolean;
+  isPending: boolean;
+  onClick: () => void;
+}
+interface RemoveAction {
+  kind: "remove";
+  isPending: boolean;
+  onClick: () => void;
+}
+export type CardAction = SaveAction | RemoveAction;
+
 interface Props {
   creator: CreatorResult;
+  action: CardAction;
 }
 
-export function ResultCard({ creator }: Props): JSX.Element {
-  // Chunk 2: Save is a no-op. Local state flips the icon so the affordance
-  // is visible during the design pass; persistence lands in Chunk 7.
-  const [isSavedLocal, setIsSavedLocal] = useState(false);
-
+export function ResultCard({ creator, action }: Props): JSX.Element {
   const score = creator.fitScore;
   const rationale = creator.fitRationale;
   const scoreLabel = score === null ? "—" : String(score);
@@ -110,26 +122,49 @@ export function ResultCard({ creator }: Props): JSX.Element {
       )}
 
       <div className="flex justify-end pt-1 border-t border-line">
-        <button
-          type="button"
-          onClick={() => setIsSavedLocal((v) => !v)}
-          className="btn btn-ghost"
-          aria-pressed={isSavedLocal}
-          title={isSavedLocal ? "Saved (mock — Chunk 7)" : "Save to Database"}
-        >
-          {isSavedLocal ? (
-            <>
-              <BookmarkCheck size={14} />
-              Saved
-            </>
-          ) : (
-            <>
-              <Bookmark size={14} />
-              Save
-            </>
-          )}
-        </button>
+        <ActionButton action={action} />
       </div>
     </article>
+  );
+}
+
+function ActionButton({ action }: { action: CardAction }): JSX.Element {
+  if (action.kind === "save") {
+    const { isSaved, isPending, onClick } = action;
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={isPending || isSaved}
+        className="btn btn-ghost disabled:opacity-60"
+        aria-pressed={isSaved}
+      >
+        {isSaved ? (
+          <>
+            <BookmarkCheck size={14} />
+            Saved
+          </>
+        ) : (
+          <>
+            <Bookmark size={14} />
+            {isPending ? "Saving…" : "Save"}
+          </>
+        )}
+      </button>
+    );
+  }
+
+  const { isPending, onClick } = action;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={isPending}
+      className="btn btn-ghost disabled:opacity-60 text-rose-deep"
+      title="Remove from saved creators"
+    >
+      <Trash2 size={14} />
+      {isPending ? "Removing…" : "Remove"}
+    </button>
   );
 }

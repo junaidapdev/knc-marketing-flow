@@ -118,3 +118,14 @@
 - `FilterForm` now exposes two submit buttons in the same form (RHF runs validation once for both): a ghost "Estimate cost" with a `Calculator` icon and the existing primary "Search creators". Local `intent` state set onClick dispatches inside the submit handler.
 - `InfluencerSearch.tsx` orchestrates the flow: Estimate → modal opens → Proceed → real search runs against the filters captured at click time (replay-safe even if the user fiddles with the form between clicks). Cost footer renders below the grid when `cost` is non-null and the page isn't loading.
 - Standards observed: no `any`, no `console.*`, all costs/tokens routed through typed shapes. `npm run build`, `eslint`, `tsc --noEmit` all clean.
+
+## Influencer Search — Chunk 7: Saved creators view (DONE)
+- New route `INFLUENCER_SAVED = "/influencers/saved"` registered in `App.tsx`. Sidebar stays one entry; users discover the Saved view via in-page tabs (matches the lighter pattern over a 9th sidebar item).
+- New `InfluencersTabs` shared component — two NavLink-based tabs (`Search`, `Saved`) using the project's existing `tab-group` / `tab` / `tab-active` classes. Rendered at the top of both pages.
+- New `SavedCreator` type now joins `creatorResult: CreatorResult` (populated by the GET list + POST insert responses).
+- New hooks `useSavedCreators(platform?)`, `useSaveCreator()`, `useRemoveSavedCreator()`. Remove uses React Query optimistic updates: rows drop from cache before the request, restore on failure.
+- `ResultCard` refactored to take a discriminated `action: { kind: "save" | "remove", ... }` prop instead of hardcoded local-state Save. Save button shows Bookmark / "Save" → BookmarkCheck / "Saved"; Remove button shows trash icon with rose-deep accent. Disabled while pending.
+- `ResultsGrid` now takes a `renderAction(creator) => CardAction` prop + optional empty/loading/preSearch message overrides — same component powers both pages.
+- `InfluencerSearch.tsx`: per-creator save flow with optimistic UI (sets `savingCreatorIds` then `savedCreatorIds`). Toast: bottom-right fixed banner, sage on success, rose on error, single-slot (replaced not stacked), 2.4 s auto-dismiss. Save state clears when a new search runs.
+- New `pages/SavedCreators.tsx`: same `ResultsGrid` rendering remove actions, with a platform-filter pill row (`All`, `TikTok`, `Instagram`, `YouTube`). Empty-state copy adapts to whether a filter is active.
+- Out of scope (per spec): bulk actions, notes editing, tags. The notes column is preserved in types but no editing UI yet.

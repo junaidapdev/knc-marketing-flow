@@ -121,3 +121,11 @@ Limitations to revisit:
   • Inserts a `creator_search_costs` row with `apify_cost_usd`, `claude_cost_usd`, `total_cost_usd` (all rounded to 4dp).
   • Embeds the rounded-to-cents cost breakdown in the response body (`cost: { apifyCostUsd, claudeCostUsd, totalCostUsd }`) so the frontend doesn't need a second round trip to render the "this search cost $X.XX" footer.
 - Apify run-sync-get-dataset-items doesn't return per-run charge metadata inline, but Apify's per-result pricing means `raw_count × unit_price` IS the billed amount — so no estimated-flag column is needed; the cost row carries actual billed totals.
+
+## Influencer Search — Chunk 7: Saved creators view (DONE)
+- New Edge Function `saved-creators` (the 15th) — full CRUD against the `saved_creators` table:
+  • `GET /saved-creators?platform=tiktok` — list, joined with `creator_results` via Supabase relationship select. Returns saved rows newest first. Optional `platform` filter applied in JS against the joined relation (the supabase-js client can't filter on a 1:1 nested relation in one query).
+  • `POST /saved-creators` — Zod-validated `{ creatorResultId, notes? }`. Idempotent: checks for an existing `(brand_id, creator_result_id)` row and returns it (200) instead of erroring. Race-condition fallback: catches Postgres `23505` unique-violation and re-fetches.
+  • `DELETE /saved-creators/:id` — hard delete, 204 No Content.
+- V1 single-tenant brand resolution mirrors `search-creators` (first brand by `created_at`).
+- All standards: Zod validation, no inline magic strings, response/case helpers reused.
