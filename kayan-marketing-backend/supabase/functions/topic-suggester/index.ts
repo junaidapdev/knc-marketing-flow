@@ -374,7 +374,9 @@ Deno.serve(async (req) => {
     },
     body: JSON.stringify({
       model: openaiModel,
-      max_tokens: 2000,
+      // Newer OpenAI models (GPT-5 series, o-series) require
+      // `max_completion_tokens` instead of the legacy `max_tokens`.
+      max_completion_tokens: 2000,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
