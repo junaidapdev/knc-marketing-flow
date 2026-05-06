@@ -109,3 +109,12 @@
 - New full-width italic `rationale` line below the metrics row — surfaces Claude's one-sentence "why this score" verdict. Hidden when the rationale is null.
 - Cards render in the order returned by the backend (already sorted `fit_score desc, engagement_rate desc, follower_count desc`); no client-side re-sorting.
 - All standards observed (no `any`, no `console.*`, no inline magic numbers). `npm run build`, `eslint`, and `tsc --noEmit` clean.
+
+## Influencer Search — Chunk 6: Cost preview + per-run cost footer (DONE)
+- New types in `types/influencer.ts`: `CreatorSearchCostBreakdown` (apify/claude/total), `CreatorSearchEstimate` (extends the breakdown with `assumptions: string[]`). `CreatorSearchResponse` now carries an optional `cost: CreatorSearchCostBreakdown | null`.
+- New hook `useEstimateCost` calling `/estimate-creator-search`. Same React Query pattern as `useCreatorSearch`.
+- New `EstimateCostModal` — center modal showing apify / claude / total breakdown with an `Assumptions` list, plus Cancel / Proceed buttons. Proceed triggers a real `/search-creators` run for the same filter set.
+- New `SearchCostFooter` — small italic line under the results grid: "This search cost $0.12 — Apify $0.08, Claude $0.04". Pulled from the run's response.
+- `FilterForm` now exposes two submit buttons in the same form (RHF runs validation once for both): a ghost "Estimate cost" with a `Calculator` icon and the existing primary "Search creators". Local `intent` state set onClick dispatches inside the submit handler.
+- `InfluencerSearch.tsx` orchestrates the flow: Estimate → modal opens → Proceed → real search runs against the filters captured at click time (replay-safe even if the user fiddles with the form between clicks). Cost footer renders below the grid when `cost` is non-null and the page isn't loading.
+- Standards observed: no `any`, no `console.*`, all costs/tokens routed through typed shapes. `npm run build`, `eslint`, `tsc --noEmit` all clean.

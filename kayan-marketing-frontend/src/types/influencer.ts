@@ -85,6 +85,15 @@ export interface CreatorSearchCost {
   createdAt: string;
 }
 
+// Per-run cost breakdown — present on /search-creators responses (actual
+// billed cost) and on /estimate-creator-search responses (predicted).
+// Same shape so the UI can render either through the same component.
+export interface CreatorSearchCostBreakdown {
+  apifyCostUsd: number;
+  claudeCostUsd: number;
+  totalCostUsd: number;
+}
+
 // Wire shape returned by /search-creators. failureReasons holds per-platform
 // error strings for partial-failure surfacing in the UI ("Couldn't fetch
 // from <platform>"). Empty array on full success.
@@ -92,4 +101,13 @@ export interface CreatorSearchResponse {
   searchId: string;
   results: CreatorResult[];
   failureReasons: string[];
+  // Actual billed cost for this run. Null only if the cost couldn't be
+  // computed for some reason — current backend always returns a number.
+  cost: CreatorSearchCostBreakdown | null;
+}
+
+// Wire shape returned by /estimate-creator-search. Pure math — no actor
+// or model calls were made.
+export interface CreatorSearchEstimate extends CreatorSearchCostBreakdown {
+  assumptions: string[];
 }

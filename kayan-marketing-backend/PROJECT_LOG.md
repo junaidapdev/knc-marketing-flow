@@ -106,3 +106,18 @@ Limitations to revisit:
   • Read-back query mirrors the in-memory sort so the response order is consistent.
 - `NormalizedCreator` type extended with optional `fit_score` + `fit_rationale` so the platform normalizers stay agnostic and only the score module writes them.
 - All env access via `Deno.env.get`. ANTHROPIC_API_KEY never returned in any response or logged. Brand DNA never echoed back to the client.
+
+## Influencer Search — Chunk 6: Cost preview + per-run cost audit (DONE)
+- New `_shared/influencer-pricing.ts`: single source of truth for pricing — `APIFY_PER_RESULT_USD` (TikTok $0.0037, Instagram $0.0027, YouTube $0.004 — FREE-tier per-result rates from each actor's Apify Store page), `APIFY_ACTOR_START_USD` (TikTok $0.001 flat fee, others 0), `CLAUDE_HAIKU_PRICING` ($1/M input + $5/M output for Haiku 4.5). Plus `roundUsd` (cents, for API surface) + `roundUsd4` (4dp, matches `numeric(10,4)` storage).
+- New Edge Function `estimate-creator-search` (the 14th):
+  • Input: same Zod-validated filter shape as `search-creators` (imports the schema directly to avoid drift).
+  • Output: `{ apifyCostUsd, claudeCostUsd, totalCostUsd, assumptions: string[] }`. Pure math — no Apify calls, no Anthropic calls, no DB writes.
+  • Filter-breadth heuristic: tightness++ for each of (single category, single country, single non-"both" language). Tightness ≥3 → 20 results/platform; =2 → 30; =1 → 35; =0 → 40 (`MAX_PROFILES_PER_ACTOR`). YouTube doubled for raw-video count (channels dedupe later).
+  • Claude tokens estimated at the result-cap (100): 2000 brand DNA + 600 rubric + 200 filters + 100 × 55 input creators ≈ 8300 input tokens, 100 × 45 ≈ 4500 output tokens. Tuned slightly pessimistic so the modal never under-promises.
+  • Assumptions list documents the math + flags FREE-tier pricing so the user knows the estimate biases high.
+- `search-creators/index.ts` now:
+  • Tracks `rawItemCount` per-platform from the actor responses (Apify charges per dataset row, regardless of dedup/cap).
+  • After scoring, computes the actual cost: `Σ raw × per-result + actor-start` for Apify, `(input × $1 + output × $5) / 1M` for Claude.
+  • Inserts a `creator_search_costs` row with `apify_cost_usd`, `claude_cost_usd`, `total_cost_usd` (all rounded to 4dp).
+  • Embeds the rounded-to-cents cost breakdown in the response body (`cost: { apifyCostUsd, claudeCostUsd, totalCostUsd }`) so the frontend doesn't need a second round trip to render the "this search cost $X.XX" footer.
+- Apify run-sync-get-dataset-items doesn't return per-run charge metadata inline, but Apify's per-result pricing means `raw_count × unit_price` IS the billed amount — so no estimated-flag column is needed; the cost row carries actual billed totals.

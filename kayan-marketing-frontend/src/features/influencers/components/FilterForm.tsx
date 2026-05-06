@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search } from "lucide-react";
+import { Search, Calculator } from "lucide-react";
 import {
   PLATFORMS,
   PLATFORM_LABELS,
@@ -106,10 +107,24 @@ const DEFAULT_VALUES: FormInput = {
 
 interface Props {
   isSubmitting: boolean;
+  isEstimating: boolean;
   onSubmit: (filters: CreatorSearchFilters) => void;
+  onEstimate: (filters: CreatorSearchFilters) => void;
 }
 
-export function FilterForm({ isSubmitting, onSubmit }: Props): JSX.Element {
+type SubmitIntent = "search" | "estimate";
+
+export function FilterForm({
+  isSubmitting,
+  isEstimating,
+  onSubmit,
+  onEstimate,
+}: Props): JSX.Element {
+  // Both buttons live inside the same form so RHF validation runs once.
+  // We track which one was clicked via local state set on click, then
+  // dispatch in the form-level submit handler.
+  const [intent, setIntent] = useState<SubmitIntent>("search");
+
   const {
     register,
     handleSubmit,
@@ -122,8 +137,8 @@ export function FilterForm({ isSubmitting, onSubmit }: Props): JSX.Element {
 
   const submit = (input: FormInput): void => {
     // Map the form's required-with-defaults shape into CreatorSearchFilters.
-    // Empty arrays / blank strings collapse to undefined so the future Edge
-    // Function sees a clean payload.
+    // Empty arrays / blank strings collapse to undefined so the Edge
+    // Functions see a clean payload.
     const filters: CreatorSearchFilters = {
       platforms: input.platforms,
       countries: input.countries,
@@ -143,7 +158,8 @@ export function FilterForm({ isSubmitting, onSubmit }: Props): JSX.Element {
       categories: input.categories,
       language: input.language,
     };
-    onSubmit(filters);
+    if (intent === "estimate") onEstimate(filters);
+    else onSubmit(filters);
   };
 
   return (
@@ -411,10 +427,20 @@ export function FilterForm({ isSubmitting, onSubmit }: Props): JSX.Element {
         </select>
       </FilterSection>
 
-      <div className="flex justify-end pt-3 border-t border-line">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:items-center gap-2 pt-3 border-t border-line">
         <button
           type="submit"
-          disabled={isSubmitting}
+          onClick={() => setIntent("estimate")}
+          disabled={isEstimating || isSubmitting}
+          className="btn btn-ghost disabled:opacity-50"
+        >
+          <Calculator size={14} />
+          {isEstimating ? "Estimating…" : "Estimate cost"}
+        </button>
+        <button
+          type="submit"
+          onClick={() => setIntent("search")}
+          disabled={isSubmitting || isEstimating}
           className="btn btn-primary disabled:opacity-50"
         >
           <Search size={14} />

@@ -6,6 +6,13 @@ import { toCamel } from "../_shared/case.ts";
 import { runActorSync } from "../_shared/apify.ts";
 import { INFLUENCER_ACTORS } from "../_shared/influencer-actors.ts";
 import {
+  APIFY_PER_RESULT_USD,
+  APIFY_ACTOR_START_USD,
+  CLAUDE_HAIKU_PRICING,
+  roundUsd,
+  roundUsd4,
+} from "../_shared/influencer-pricing.ts";
+import {
   filtersSchema,
   type CreatorSearchFilters,
   type NormalizedCreator,
@@ -22,6 +29,10 @@ const RESULT_CAP = 100;
 interface PlatformOutcome {
   platform: Platform;
   creators: NormalizedCreator[];
+  // Raw item count returned by the actor before normalization/dedup. Used
+  // for cost accounting — Apify charges per dataset row, not per creator
+  // we end up keeping after the in-memory dedupe pass.
+  rawItemCount: number;
 }
 
 interface FailureRecord {
@@ -61,7 +72,11 @@ async function runPlatform(
   }
   const input = handler.buildInput(filters);
   const items = await runActorSync<unknown>(handler.actorId, apifyToken, input);
-  return { platform, creators: handler.normalize(items, searchId) };
+  return {
+    platform,
+    creators: handler.normalize(items, searchId),
+    rawItemCount: Array.isArray(items) ? items.length : 0,
+  };
 }
 
 function applyFollowerThresholds(
@@ -166,10 +181,21 @@ Deno.serve(async (req) => {
 
   const successes: NormalizedCreator[] = [];
   const failures: FailureRecord[] = [];
+  // Per-platform raw counts feed the Apify cost calculation below. We
+  // initialize every selected platform to 0 so a failed-platform row
+  // contributes the actor-start fee but no per-result charge.
+  const rawCountsByPlatform: Record<Platform, number> = {
+    tiktok: 0,
+    instagram: 0,
+    youtube: 0,
+  };
+  const ranPlatforms = new Set<Platform>();
   settled.forEach((result, idx) => {
     const platform = platforms[idx]!;
+    ranPlatforms.add(platform);
     if (result.status === "fulfilled") {
       successes.push(...result.value.creators);
+      rawCountsByPlatform[platform] = result.value.rawItemCount;
     } else {
       const message =
         result.reason instanceof Error ? result.reason.message : "Unknown error";
@@ -289,6 +315,30 @@ Deno.serve(async (req) => {
     );
   }
 
+  // Compute the run cost from actual Apify result counts + Claude token
+  // usage, then persist a creator_search_costs row. Apify per-result
+  // pricing means raw_count × unit_price is the exact billed amount;
+  // Claude likewise charges per token returned by the API.
+  let apifyCostUsd = 0;
+  for (const p of ranPlatforms) {
+    const raw = rawCountsByPlatform[p];
+    apifyCostUsd += raw * APIFY_PER_RESULT_USD[p];
+    if (raw > 0) apifyCostUsd += APIFY_ACTOR_START_USD[p];
+  }
+  const claudeCostUsd =
+    (scoring.promptTokens * CLAUDE_HAIKU_PRICING.inputPerMillionUsd) /
+      1_000_000 +
+    (scoring.completionTokens * CLAUDE_HAIKU_PRICING.outputPerMillionUsd) /
+      1_000_000;
+  const totalCostUsd = apifyCostUsd + claudeCostUsd;
+
+  await db.from("creator_search_costs").insert({
+    search_id: searchId,
+    apify_cost_usd: roundUsd4(apifyCostUsd),
+    claude_cost_usd: roundUsd4(claudeCostUsd),
+    total_cost_usd: roundUsd4(totalCostUsd),
+  });
+
   // Read back inserted rows so the response carries server-generated ids
   // and created_at. Multi-key order mirrors the in-memory sort so callers
   // see the same ranking the scoring pass produced.
@@ -307,5 +357,10 @@ Deno.serve(async (req) => {
     searchId,
     results: toCamel(insertedRows ?? []),
     failureReasons,
+    cost: {
+      apifyCostUsd: roundUsd(apifyCostUsd),
+      claudeCostUsd: roundUsd(claudeCostUsd),
+      totalCostUsd: roundUsd(totalCostUsd),
+    },
   });
 });
