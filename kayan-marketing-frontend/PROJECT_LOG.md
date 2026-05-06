@@ -77,83 +77,12 @@
 - `Calendar.tsx`: branch filter dropdown in header; state in URL search param `?branchId=` via `useSearchParams` (replace mode); persists across refresh and monthly⇄weekly toggle. `useCalendarEntries` accepts `branchId`. MonthlyView and WeeklyView both pass it to the hook so the filter applies to all entries that have a branch_id, not just shop activities
 - `Today` view: `TaskRow` shows an emerald MapPin chip when the task's parent entry has a branch — surfaces the location on the docket without needing to open the entry
 
-## Influencer Search — Chunk 1: Foundation (DONE)
-- Constants `src/constants/influencer.ts`: `PLATFORMS` (tiktok|instagram|youtube), `CONTENT_CATEGORIES` (dessert|food|family|gifting|lifestyle), `LANGUAGES` (arabic|english|both), `GCC_COUNTRIES` (sa|ae|kw|bh|qa|om), `CREATOR_SEARCH_STATUSES` — all with display label maps, mirroring migration 0039 CHECK constraints
-- Types `src/types/influencer.ts`: `CreatorSearch`, `CreatorResult`, `SavedCreator`, `CreatorSearchFilters`, `CreatorSearchCost`, `CreatorAudienceDemographics`. Re-exported from `types/index.ts`
-- Route `INFLUENCER_SEARCH = "/influencers/search"` added to `constants/routes.ts` and registered in `App.tsx`
-- Sidebar entry "Influencer Search" with the `Search` icon (lucide-react), placed between Topics and Campaigns in `AppShell.tsx`
-- `pages/InfluencerSearch.tsx`: title-only scaffold page so the route + nav are demoable
-- No filter form, results, or backend wiring yet — those start in Chunk 2 (mocked) and Chunk 3 (real Apify)
-
-## Influencer Search — Chunk 2: Filter form + results grid (mocked) (DONE)
-- New folder `src/features/influencers/`:
-  • `components/FilterForm.tsx` — RHF + Zod, all 6 filter groups (platforms multi-select with min-1 rule, location countries + city, audience age range with min/max number inputs 13–65, gender skew, audience country breakdown, follower min/max, engagement rate min/max %, avg views min, avg likes min, posting frequency, content categories multi-select, language). Cross-field validation via `superRefine`: max ≥ min for age, followers, and engagement
-  • `components/ResultCard.tsx` — avatar (or `User` icon fallback), `@handle`, platform chip, city/country line, follower + engagement metrics, score placeholder ("—" with tooltip pointing to Chunk 5), Save button (no-op, local-state-only flip to `BookmarkCheck`)
-  • `components/ResultsGrid.tsx` — responsive grid (1 / 2 / 3 cols at sm / xl), with empty/loading/error states
-  • `hooks/use-creator-search.ts` — React Query mutation calling a 600 ms stub that filters `MOCK_CREATORS` by selected platforms only (other filters wait for Chunk 3 backend)
-  • `data/mock-creators.ts` — 10 hardcoded GCC dessert/family/food creators across all 3 platforms
-  • `utils/format.ts` — `formatFollowerCount` (480_000 → "480K", 1_240_000 → "1.2M") and `formatEngagementRate` (handles both decimal `0.054` and already-percent `5.4` inputs)
-- `pages/InfluencerSearch.tsx` rewired into a two-column layout (`lg:grid-cols-[360px_1fr]`); collapses to single column below `lg`. Stale-result preservation: latest successful results persist across rerenders that aren't part of a new search
-- No backend wiring, no real persistence — Save button local-only; mutation never hits the network. All standards observed (no `any`, Zod validates before submit, no `console.*`, constants/types modular)
-- `npm run build`, `eslint`, and `tsc --noEmit` all clean
-
-## Influencer Search — Chunk 3+4: Real Apify backend wiring (DONE)
-- `useCreatorSearch` swapped from the 600 ms mock to a real `apiRequest("/search-creators", ...)` call. Returns the new `CreatorSearchResponse` shape `{ searchId, results, failureReasons }`. Mock dataset (`data/mock-creators.ts`) is left in place as dead code in case it's useful for storybook/tests later — easy to delete in a polish pass.
-- New `CreatorSearchResponse` type added to `types/influencer.ts` covering the `failureReasons: string[]` partial-failure surface.
-- `InfluencerSearch.tsx` now renders an inline `FailureStrip` (yellow-bg warning style matching the existing `TimelineWarning`) above the results grid whenever `failureReasons` is non-empty. Each reason is a `"<platform>: <message>"` string truncated to 140 chars; the platform name is rendered in a mono chip for scannability.
-- All three platform checkboxes stay enabled (Chunk 2 never gated them, since the partial-Chunk-3 work merged straight into Chunk 4).
-- Standards observed: no `any`, no `console.*`, types modular, Zod still validates the form. `npm run build`, `eslint`, and `tsc --noEmit` all clean.
-
-## Influencer Search — Chunk 5: Claude-scored creator ranking (DONE)
-- `ResultCard` now renders a real `Fit score` chip (color-coded per Chunk 5 spec: ≥80 emerald via `bg-sage`, ≥60 yellow via `bg-yellow`, else neutral `bg-cream-2`). Chip label is the integer 0–100, hover shows the rationale.
-- New full-width italic `rationale` line below the metrics row — surfaces Claude's one-sentence "why this score" verdict. Hidden when the rationale is null.
-- Cards render in the order returned by the backend (already sorted `fit_score desc, engagement_rate desc, follower_count desc`); no client-side re-sorting.
-- All standards observed (no `any`, no `console.*`, no inline magic numbers). `npm run build`, `eslint`, and `tsc --noEmit` clean.
-
-## Influencer Search — Chunk 6: Cost preview + per-run cost footer (DONE)
-- New types in `types/influencer.ts`: `CreatorSearchCostBreakdown` (apify/claude/total), `CreatorSearchEstimate` (extends the breakdown with `assumptions: string[]`). `CreatorSearchResponse` now carries an optional `cost: CreatorSearchCostBreakdown | null`.
-- New hook `useEstimateCost` calling `/estimate-creator-search`. Same React Query pattern as `useCreatorSearch`.
-- New `EstimateCostModal` — center modal showing apify / claude / total breakdown with an `Assumptions` list, plus Cancel / Proceed buttons. Proceed triggers a real `/search-creators` run for the same filter set.
-- New `SearchCostFooter` — small italic line under the results grid: "This search cost $0.12 — Apify $0.08, Claude $0.04". Pulled from the run's response.
-- `FilterForm` now exposes two submit buttons in the same form (RHF runs validation once for both): a ghost "Estimate cost" with a `Calculator` icon and the existing primary "Search creators". Local `intent` state set onClick dispatches inside the submit handler.
-- `InfluencerSearch.tsx` orchestrates the flow: Estimate → modal opens → Proceed → real search runs against the filters captured at click time (replay-safe even if the user fiddles with the form between clicks). Cost footer renders below the grid when `cost` is non-null and the page isn't loading.
-- Standards observed: no `any`, no `console.*`, all costs/tokens routed through typed shapes. `npm run build`, `eslint`, `tsc --noEmit` all clean.
-
-## Influencer Search — Chunk 7: Saved creators view (DONE)
-- New route `INFLUENCER_SAVED = "/influencers/saved"` registered in `App.tsx`. Sidebar stays one entry; users discover the Saved view via in-page tabs (matches the lighter pattern over a 9th sidebar item).
-- New `InfluencersTabs` shared component — two NavLink-based tabs (`Search`, `Saved`) using the project's existing `tab-group` / `tab` / `tab-active` classes. Rendered at the top of both pages.
-- New `SavedCreator` type now joins `creatorResult: CreatorResult` (populated by the GET list + POST insert responses).
-- New hooks `useSavedCreators(platform?)`, `useSaveCreator()`, `useRemoveSavedCreator()`. Remove uses React Query optimistic updates: rows drop from cache before the request, restore on failure.
-- `ResultCard` refactored to take a discriminated `action: { kind: "save" | "remove", ... }` prop instead of hardcoded local-state Save. Save button shows Bookmark / "Save" → BookmarkCheck / "Saved"; Remove button shows trash icon with rose-deep accent. Disabled while pending.
-- `ResultsGrid` now takes a `renderAction(creator) => CardAction` prop + optional empty/loading/preSearch message overrides — same component powers both pages.
-- `InfluencerSearch.tsx`: per-creator save flow with optimistic UI (sets `savingCreatorIds` then `savedCreatorIds`). Toast: bottom-right fixed banner, sage on success, rose on error, single-slot (replaced not stacked), 2.4 s auto-dismiss. Save state clears when a new search runs.
-- New `pages/SavedCreators.tsx`: same `ResultsGrid` rendering remove actions, with a platform-filter pill row (`All`, `TikTok`, `Instagram`, `YouTube`). Empty-state copy adapts to whether a filter is active.
-- Out of scope (per spec): bulk actions, notes editing, tags. The notes column is preserved in types but no editing UI yet.
-
-## Influencer Search — Chunk 8: Polish + ship-ready (DONE)
-- New `EstimatedBadge` component — small grey pill with `Info` icon and tooltip. Used both as part of the disclaimer strip and inline next to demographic data on each card.
-- New `CardSkeleton` + `CardSkeletonGrid` — pulse-animated placeholders that mirror the `ResultCard` layout. Six skeletons render during `isLoading` instead of the prior text-only "Searching creators…" line.
-- New `ResultsErrorBoundary` (class component) wrapping the grid on both pages. Catches React render errors, logs via `logger`, and shows a retry button that remounts the children. React Query fetch errors still surface via the inline error message in `ResultsGrid`; the boundary handles the rarer render-time crash so the whole page never goes blank.
-- `ResultsGrid` now renders a disclaimer strip above the grid: "Audience demographics are estimates from third-party scrapers, not the platform's official analytics." with the badge inline. Toggleable via `showDisclaimer` for callers that have their own.
-- `ResultCard` adds a one-line demographics summary ("Audience: 73% SA, 12% AE …") with the `EstimatedBadge` when `audienceDemographics.topCountries` is populated. Hidden when there's nothing to show.
-- Mobile pass:
-  • `ToastBanner` previously had `max-w-sm` (384 px) which exceeded a 375 px viewport — switched to `left-4 right-4 sm:left-auto sm:max-w-sm` so it spans available width on phone, narrows on tablet+.
-  • FilterForm number-pair grids verified at 375 px; with the card's 22 px padding and the page gutter, each cell is ~140 px — comfortable for 4-digit follower numbers.
-  • EstimateCostModal uses `max-w-md` with wrapper padding `p-2` on mobile, so it's effectively viewport-bound below sm; no overflow.
-  • InfluencersTabs uses the project's existing `tab-group` class (a flex pill row) — tested at 375 px, both tabs fit on one row.
-  • Saved page's `PlatformPill` row uses `flex-wrap` and chip-sized buttons — wraps cleanly at 375 px with all four pills (All / TikTok / Instagram / YouTube).
-- Empty states refined: search page now reads "Set your filters and run a search to discover GCC creators across TikTok, Instagram, and YouTube" pre-search; saved page distinguishes between "no saves yet" and "no saves on this platform filter".
-
-## V1 Influencer Search COMPLETE
-**Pages.** `/influencers/search` (FilterForm + scored results grid + cost preview/footer) and `/influencers/saved` (shortlist with platform-pill filter). Both share an in-page `InfluencersTabs` strip; sidebar has one "Influencer Search" entry pointing to /search.
-
-**Components built.** `FilterForm`, `ResultCard` (with discriminated save/remove `action` prop), `ResultsGrid` (with `renderAction` factory), `CardSkeleton` / `CardSkeletonGrid`, `EstimatedBadge`, `EstimateCostModal`, `SearchCostFooter`, `ResultsErrorBoundary`, `InfluencersTabs`. Plus inline `FailureStrip` and `ToastBanner` on the search page.
-
-**Hooks.** `useCreatorSearch`, `useEstimateCost`, `useSavedCreators` (list with optional platform filter), `useSaveCreator`, `useRemoveSavedCreator` (optimistic cache update on remove).
-
-**Standards adherence.** No `any` types, no `console.*` (all errors go through `logger`), all constants in `src/constants/influencer.ts`, all types in `src/types/influencer.ts`, Zod validation on every form, React Query for server state, RHF + Controller for form fields. ESLint and `tsc --noEmit` clean across all 8 chunks.
-
-**Known UI limits.**
-- Audience demographics line only renders `topCountries` from the jsonb — age buckets and gender split are stored but not surfaced yet.
-- Save button on the search page tracks per-creator state in local React state — switches off when a new search runs. To know "is this creator already in your shortlist" across sessions, the search page would need to cross-reference the saved-creators query (Chunk 9 if it ever lands).
-- Toast is single-slot (replaced not stacked) on rapid saves — by design, but means the user sees only the most recent message.
+## Influencer Search — REMOVED
+Built across Chunks 1–8 (commits `214b87b` through `4510ee4`) and removed
+on 2026-05-06. Pulled because the TikTok user-search actor proved too
+slow to fit inside Supabase's gateway IDLE_TIMEOUT (~150s) without an
+async-polling refactor. All UI (FilterForm, ResultCard, ResultsGrid,
+EstimateCostModal, SearchCostFooter, EstimatedBadge, CardSkeleton,
+ResultsErrorBoundary, InfluencersTabs, SavedCreators page, etc.) and
+the supporting hooks/types/constants are gone. See git history if you
+ever want to revive the implementation.

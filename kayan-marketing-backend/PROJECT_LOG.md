@@ -64,99 +64,12 @@
 - `calendar-entries` Edge Function: create schema requires `branchId` when `type === 'shop_activity'` (Zod superRefine, 422 with field-level error); update schema accepts `branchId` without the conditional rule; list GET accepts `?branchId=` filter; detail GET joins `branches` as nested `branch`
 - New Edge Function `branches` (12th) — GET, returns active branches sorted by city then name; replaces the prior direct supabase-js query path
 
-## Influencer Search — Chunk 1: Foundation (DONE)
-- Migration 0039: four new tables with RLS — `creator_searches` (filters jsonb + status lifecycle), `creator_results` (per-creator row keyed to a search; `audience_demographics` jsonb + `is_estimated_demographics` flag; nullable `fit_score`/`fit_rationale` filled in Chunk 5), `saved_creators` (unique on `(brand_id, creator_result_id)` for idempotent saves), `creator_search_costs` (per-run audit of Apify + Claude spend)
-- All four tables follow the V1 single-tenant `authenticated_full_access` RLS stance and cascade on brand/search delete
-- Indexes: `creator_results(search_id)`, `saved_creators(brand_id, created_at desc)`, `creator_search_costs(search_id)`, `creator_searches(brand_id, created_at desc)`
-- No Edge Functions or Apify integration yet — those start in Chunk 3
-
-## Influencer Search — Chunk 3+4: TikTok + Instagram + YouTube via Apify (DONE)
-- Combined Chunk 3 (TikTok) and Chunk 4 (Instagram + YouTube) into one commit since the partial Chunk 3 work (only `_shared/influencer-actors.ts` + `_shared/apify.ts` were written) was never committed before Chunk 4 started.
-- Migration 0040: `failure_reasons text[]` on `creator_searches` for partial-failure UX (one platform errors but others succeed).
-- New `_shared/apify.ts`: thin wrapper around `/v2/acts/{actor}/run-sync-get-dataset-items`. Token passed as argument (never logged), URL-form actor IDs translated from human `username/name` to Apify's `username~name`. Defensive 200-char truncation on upstream error bodies.
-- New `_shared/influencer-actors.ts` pinning all three actor IDs:
-  • TikTok → `clockworks/tiktok-scraper` (4.75★ / 276 reviews / 171K users / 11K MAU). Supports keyword search + `proxyCountryCode` covering every GCC country. Same actor performance-ingest already uses for known-profile scraping.
-  • Instagram → `apify/instagram-scraper` (official Apify, 4.7★ / 398 reviews / 251K users / 99.9% success). `search` + `searchType: "user"` is the keyword discovery mode.
-  • YouTube → `streamers/youtube-scraper` (4.7★ / 154 reviews / 75K users). YouTube on Apify has no native "search channels" actor — this video-search actor returns channel metadata on each video result; the normalizer dedupes by channelId so each creator appears once.
-- New Edge Function `search-creators` (the 13th):
-  • Per-platform module files: `tiktok.ts`, `instagram.ts`, `youtube.ts`. Each exports `buildInput(filters)` (actor-specific input shape) and `normalize(items, searchId)` (snake_case `creator_results` row inserts).
-  • Shared `types.ts` with the `filtersSchema` Zod definition + inferred `CreatorSearchFilters` type. Mirror of the frontend's `CreatorSearchFilters` since Edge Functions can't import from `src/`.
-  • Flow: validate body → resolve V1 single-tenant brand → insert `creator_searches` row in `running` status → fan out to selected platforms in parallel via `Promise.allSettled` → collect successes/failures → apply follower min/max thresholds (TikTok and Instagram actors don't natively support them) → dedupe by `(platform, handle)` → sort by `follower_count desc` → cap at 100 → bulk insert `creator_results` → update search row to `completed`/`failed` with `result_count` + `failure_reasons` → read back inserted rows for response.
-  • If every platform fails: status `failed` and 500 response with `failureReasons` in details. If some succeed: status `completed`, results returned, `failureReasons` listed in the response body for the UI to surface.
-- All env access via `Deno.env.get`. APIFY_API_TOKEN never returned in any response, never logged.
-
-Limitations to revisit:
-- TikTok and Instagram actors don't natively support follower min/max — applied client-side after the actors return, so we may filter away most of a small result set. Bumping `MAX_PROFILES_PER_ACTOR` (currently 40) is the lever if recall feels weak.
-- YouTube discovery quality depends on video-search relevance scoring; channels with one viral matching video can rank above channels that genuinely match the keyword across their catalog. Acceptable for V1.
-
-## Influencer Search — Chunk 5: Claude-scored creator ranking via Brand DNA (DONE)
-- Migration 0041: `claude_prompt_tokens` + `claude_completion_tokens` integer columns on `creator_searches`. Chunk 6 will multiply these by Haiku per-token pricing for the cost audit.
-- New `search-creators/score.ts`:
-  • `loadBrandDna(db, brandId)` — reads `brands.dna_markdown`, mirrors the loader pattern from `ai-assistant/index.ts`.
-  • `buildScoringSystemPrompt(brandDna, filters)` — fixed scoring rubric (audience alignment / category fit / authenticity / brand safety, 0-100 scale) + Brand DNA + filter context. Strict-JSON output rules baked in.
-  • `buildScoringUserMessage(creators)` — compact JSON of the merged set (handle, platform, displayName, bio sliced to 200 chars, followers, engagement, language, country). Skips heavy raw payload to keep prompt tokens predictable.
-  • `scoreCreators(...)` — calls Anthropic `/v1/messages` directly (model `claude-haiku-4-5-20251001`, version `2023-06-01`, max 6000 output tokens). Parses the response JSON array (regex pulls the first `[…]` if Claude added chatter), validates each item, clamps scores to 0-100 + truncates rationale to 140 chars. On parse failure: every creator gets score 0 + rationale "AI scoring failed".
-- `search-creators/index.ts` orchestration (after merge → dedupe → cap):
-  • If `ANTHROPIC_API_KEY` not configured → score 0 + rationale "AI scoring not configured", failure_reasons records the gap.
-  • If Anthropic HTTP throws → catch + score 0 + rationale "AI scoring failed", failure_reasons records the error.
-  • If parse fails → same "AI scoring failed" path, failure_reasons records "scoring: model returned unparseable JSON".
-  • In-memory sort by `fit_score desc, engagement_rate desc, follower_count desc`.
-  • Insert into creator_results with the scored fields populated.
-  • Update creator_searches with `claude_prompt_tokens` + `claude_completion_tokens` from Anthropic's `usage.input_tokens` / `output_tokens`.
-  • Read-back query mirrors the in-memory sort so the response order is consistent.
-- `NormalizedCreator` type extended with optional `fit_score` + `fit_rationale` so the platform normalizers stay agnostic and only the score module writes them.
-- All env access via `Deno.env.get`. ANTHROPIC_API_KEY never returned in any response or logged. Brand DNA never echoed back to the client.
-
-## Influencer Search — Chunk 6: Cost preview + per-run cost audit (DONE)
-- New `_shared/influencer-pricing.ts`: single source of truth for pricing — `APIFY_PER_RESULT_USD` (TikTok $0.0037, Instagram $0.0027, YouTube $0.004 — FREE-tier per-result rates from each actor's Apify Store page), `APIFY_ACTOR_START_USD` (TikTok $0.001 flat fee, others 0), `CLAUDE_HAIKU_PRICING` ($1/M input + $5/M output for Haiku 4.5). Plus `roundUsd` (cents, for API surface) + `roundUsd4` (4dp, matches `numeric(10,4)` storage).
-- New Edge Function `estimate-creator-search` (the 14th):
-  • Input: same Zod-validated filter shape as `search-creators` (imports the schema directly to avoid drift).
-  • Output: `{ apifyCostUsd, claudeCostUsd, totalCostUsd, assumptions: string[] }`. Pure math — no Apify calls, no Anthropic calls, no DB writes.
-  • Filter-breadth heuristic: tightness++ for each of (single category, single country, single non-"both" language). Tightness ≥3 → 20 results/platform; =2 → 30; =1 → 35; =0 → 40 (`MAX_PROFILES_PER_ACTOR`). YouTube doubled for raw-video count (channels dedupe later).
-  • Claude tokens estimated at the result-cap (100): 2000 brand DNA + 600 rubric + 200 filters + 100 × 55 input creators ≈ 8300 input tokens, 100 × 45 ≈ 4500 output tokens. Tuned slightly pessimistic so the modal never under-promises.
-  • Assumptions list documents the math + flags FREE-tier pricing so the user knows the estimate biases high.
-- `search-creators/index.ts` now:
-  • Tracks `rawItemCount` per-platform from the actor responses (Apify charges per dataset row, regardless of dedup/cap).
-  • After scoring, computes the actual cost: `Σ raw × per-result + actor-start` for Apify, `(input × $1 + output × $5) / 1M` for Claude.
-  • Inserts a `creator_search_costs` row with `apify_cost_usd`, `claude_cost_usd`, `total_cost_usd` (all rounded to 4dp).
-  • Embeds the rounded-to-cents cost breakdown in the response body (`cost: { apifyCostUsd, claudeCostUsd, totalCostUsd }`) so the frontend doesn't need a second round trip to render the "this search cost $X.XX" footer.
-- Apify run-sync-get-dataset-items doesn't return per-run charge metadata inline, but Apify's per-result pricing means `raw_count × unit_price` IS the billed amount — so no estimated-flag column is needed; the cost row carries actual billed totals.
-
-## Influencer Search — Chunk 7: Saved creators view (DONE)
-- New Edge Function `saved-creators` (the 15th) — full CRUD against the `saved_creators` table:
-  • `GET /saved-creators?platform=tiktok` — list, joined with `creator_results` via Supabase relationship select. Returns saved rows newest first. Optional `platform` filter applied in JS against the joined relation (the supabase-js client can't filter on a 1:1 nested relation in one query).
-  • `POST /saved-creators` — Zod-validated `{ creatorResultId, notes? }`. Idempotent: checks for an existing `(brand_id, creator_result_id)` row and returns it (200) instead of erroring. Race-condition fallback: catches Postgres `23505` unique-violation and re-fetches.
-  • `DELETE /saved-creators/:id` — hard delete, 204 No Content.
-- V1 single-tenant brand resolution mirrors `search-creators` (first brand by `created_at`).
-- All standards: Zod validation, no inline magic strings, response/case helpers reused.
-
-## Influencer Search — Chunk 8: Polish + ship-ready (DONE)
-- RLS audit on the four feature tables: `creator_searches`, `creator_results`, `saved_creators`, `creator_search_costs`. All four follow the V1 single-tenant pattern from migration 0039 / 0040 / 0041:
-  • RLS enabled (`alter table … enable row level security`)
-  • One policy per table: `for all to authenticated using (true) with check (true)`
-  • No policy targets the `anon` role → anon reads/writes are denied by default
-  • Cross-brand isolation is not enforced at the RLS layer (single-tenant V1, one brand row exists). When multi-tenant lands, the policies will need to filter by `brand_id = (auth.jwt() ->> 'brand_id')::uuid` or similar.
-- No new migrations or backend code — the polish chunk is frontend-only on the backend side, but the audit closes the loop.
-
-## V1 Influencer Search COMPLETE
-**Scope.** Searchable creator-discovery module on top of the existing Kayan Marketing OS. Filters by location (GCC), audience demographics, engagement metrics, content categories, platform, and language. AI-scored for fit with the Kayan brand. Persistent shortlist via Saved Creators. Per-run cost preview + audit.
-
-**Supported platforms.** TikTok, Instagram, YouTube — one Apify actor per platform pinned in `_shared/influencer-actors.ts`.
-
-**Migrations.** 0039 (4 tables + RLS) → 0040 (`failure_reasons text[]`) → 0041 (Claude token columns). All on V1 `authenticated_full_access` RLS.
-
-**Edge Functions.** `search-creators` (orchestrator: actor fan-out → dedupe → cap → Claude scoring → cost compute → persist → return), `estimate-creator-search` (pure-math cost preview), `saved-creators` (CRUD shortlist).
-
-**Known limits.**
-- TikTok and Instagram actors don't natively support follower min/max — applied client-side after the actor returns. Tight follower thresholds may yield few results; widen the range or bump `MAX_PROFILES_PER_ACTOR`.
-- YouTube channel discovery dedupes from video search results — channels with one viral matching video can outrank channels that genuinely match the keyword across their catalog.
-- Audience demographics are scraper estimates, not platform analytics. Surfaced in the UI with an "Estimated" badge + disclaimer strip. The `audience_demographics` jsonb is currently sparse; only `topCountries` is rendered when present.
-- Apify rate limits apply on the free tier — heavy use may need a paid Apify plan.
-- Claude scoring depends on Brand DNA being populated on the brand row. If `brands.dna_markdown` is empty, the rubric still works but scores will be more generic.
-
-**Ops notes.**
-- **Swap actor IDs** — single source of truth at `kayan-marketing-backend/supabase/functions/_shared/influencer-actors.ts`. Change a value, redeploy `search-creators`, done.
-- **Update pricing** — `kayan-marketing-backend/supabase/functions/_shared/influencer-pricing.ts`. Apify per-result, actor-start fees, Claude Haiku per-million-token rates all live here. Affects both the estimate endpoint and the actual-cost calculation in `search-creators`.
-- **Monitor cost** — every completed run writes a row to `creator_search_costs`. Sum `total_cost_usd` over a date range to track spend; group by month or by brand_id (via the `creator_searches` join) for breakdowns.
-- **Required secrets** — `APIFY_API_TOKEN` (Apify), `ANTHROPIC_API_KEY` (Claude). Set via `supabase secrets set …`.
-- **Token usage audit** — `creator_searches.claude_prompt_tokens` + `claude_completion_tokens` per row; multiply by current Haiku rates if Anthropic re-prices.
+## Influencer Search — REMOVED
+Built across Chunks 1–8 (commits `214b87b` through `4510ee4`) and removed
+on 2026-05-06. Pulled because TikTok user search via Apify proved too
+slow to fit inside Supabase's gateway IDLE_TIMEOUT (~150s) without an
+async-polling refactor — even with `MAX_PROFILES_PER_ACTOR=10` and
+`resultsPerPage=1`, the actor's session/proxy overhead burned the budget.
+Migration 0042 drops the four feature tables; migrations 0039–0041 stay
+in the repo for historical record. See git history if you ever want to
+revive the implementation.

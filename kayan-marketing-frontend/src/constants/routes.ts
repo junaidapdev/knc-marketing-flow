@@ -5,8 +5,6 @@ export const ROUTES = {
   CALENDAR_WEEKLY: "/calendar/week",
   MARKETING_CALENDAR: "/marketing-calendar",
   TOPICS: "/topics",
-  INFLUENCER_SEARCH: "/influencers/search",
-  INFLUENCER_SAVED: "/influencers/saved",
   CAMPAIGNS: "/campaigns",
   CAMPAIGN_DETAIL: (id: string) => `/campaigns/${id}`,
   PERFORMANCE: "/performance",

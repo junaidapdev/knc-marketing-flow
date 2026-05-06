@@ -9,8 +9,6 @@ import TodayPage from "./pages/Today";
 import CalendarPage from "./pages/Calendar";
 import MarketingCalendarPage from "./pages/MarketingCalendar";
 import TopicsPage from "./pages/Topics";
-import InfluencerSearchPage from "./pages/InfluencerSearch";
-import SavedCreatorsPage from "./pages/SavedCreators";
 import CampaignsPage from "./pages/Campaigns";
 import CampaignDetailPage from "./pages/CampaignDetail";
 import PerformancePage from "./pages/Performance";
@@ -40,8 +38,6 @@ function AppRoutes(): JSX.Element {
         <Route path={ROUTES.CALENDAR} element={<CalendarPage />} />
         <Route path={ROUTES.MARKETING_CALENDAR} element={<MarketingCalendarPage />} />
         <Route path={ROUTES.TOPICS} element={<TopicsPage />} />
-        <Route path={ROUTES.INFLUENCER_SEARCH} element={<InfluencerSearchPage />} />
-        <Route path={ROUTES.INFLUENCER_SAVED} element={<SavedCreatorsPage />} />
         <Route path={ROUTES.CAMPAIGNS} element={<CampaignsPage />} />
         <Route path="/campaigns/:id" element={<CampaignDetailPage />} />
         <Route path={ROUTES.PERFORMANCE} element={<PerformancePage />} />
