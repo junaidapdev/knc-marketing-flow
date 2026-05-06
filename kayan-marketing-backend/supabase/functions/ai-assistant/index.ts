@@ -654,7 +654,10 @@ Deno.serve(async (req) => {
     },
     body: JSON.stringify({
       model: openaiModel,
-      max_tokens: 2000,
+      // Newer OpenAI models (GPT-5 series, o-series) require
+      // `max_completion_tokens` instead of the legacy `max_tokens`.
+      // Older chat models still accept it.
+      max_completion_tokens: 2000,
       messages,
     }),
   });
