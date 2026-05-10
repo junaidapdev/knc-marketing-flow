@@ -9,7 +9,12 @@ export interface Topic {
   id: string;
   brandId: string;
   title: string;
+  // English companion fields added in migration 0045. Existing rows
+  // pre-migration have these as null; the Topics page UI falls back to
+  // the other language when the requested one is empty.
+  titleEn: string | null;
   description: string | null;
+  descriptionEn: string | null;
   // Stored as text in the DB (no FK). The frontend type narrows it to known
   // PatternId values; unknown patterns from the future will fail this type
   // and need a constants update — that's the intended forcing function.
@@ -34,7 +39,9 @@ export interface Topic {
 export interface CreateTopicInput {
   brandId: string;
   title: string;
+  titleEn?: string | null;
   description?: string | null;
+  descriptionEn?: string | null;
   patternId?: PatternId | null;
   branchId?: string | null;
   theme?: string | null;
@@ -46,7 +53,9 @@ export interface CreateTopicInput {
 
 export interface UpdateTopicInput {
   title?: string;
+  titleEn?: string | null;
   description?: string | null;
+  descriptionEn?: string | null;
   patternId?: PatternId | null;
   branchId?: string | null;
   theme?: string | null;

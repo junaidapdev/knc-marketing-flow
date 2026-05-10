@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Plus, Sparkles, AlertCircle, Lightbulb } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Plus, Sparkles, AlertCircle, Lightbulb, Languages } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { useCurrentBrand } from "../hooks/use-current-brand";
 import { useBranches } from "../features/branches/hooks/use-branches";
@@ -28,6 +28,12 @@ import { logger } from "../utils/logger";
 
 type StatusFilter = "all" | TopicStatus;
 
+// Display language for topic title/description. Defaults to English so
+// managers reviewing the queue read fluent copy at a glance; the AR
+// toggle flips to Saudi-Arabic for the creator who'll actually shoot
+// the topic. Persisted via URL search param so reloads stick.
+export type TopicDisplayLanguage = "en" | "ar";
+
 // Default scheduling lead time when "Use this" creates an entry. Lands the
 // new entry a week out so the marketer has buffer to script + shoot.
 const DEFAULT_LEAD_DAYS = 7;
@@ -39,6 +45,23 @@ function todayIso(): string {
 export default function TopicsPage(): JSX.Element {
   const navigate = useNavigate();
   const { brandId } = useCurrentBrand();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Display language (URL search param `?lang=ar|en`, defaults to en).
+  const language: TopicDisplayLanguage =
+    searchParams.get("lang") === "ar" ? "ar" : "en";
+  const setLanguage = (next: TopicDisplayLanguage): void => {
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        if (next === "en") sp.delete("lang");
+        else sp.set("lang", next);
+        return sp;
+      },
+      { replace: true },
+    );
+  };
+
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("queued");
   const [occasionFilter, setOccasionFilter] = useState<TopicOccasion | "">("");
   const [patternFilter, setPatternFilter] = useState<PatternId | "">("");
@@ -197,6 +220,32 @@ export default function TopicsPage(): JSX.Element {
             Clear filters
           </button>
         )}
+        {/* Language toggle — switches the title/description rendering on
+            every TopicCard. EN is the default for at-a-glance manager
+            review; AR shows the creator-facing Saudi text for shoot day. */}
+        <div
+          className="tab-group ml-2"
+          role="group"
+          aria-label="Topic display language"
+        >
+          <button
+            type="button"
+            onClick={() => setLanguage("en")}
+            className={`tab !px-3 !py-1 !text-[12px] ${language === "en" ? "tab-active" : ""}`}
+            aria-pressed={language === "en"}
+          >
+            <Languages size={11} className="inline -mt-0.5 mr-1" />
+            EN
+          </button>
+          <button
+            type="button"
+            onClick={() => setLanguage("ar")}
+            className={`tab !px-3 !py-1 !text-[12px] ${language === "ar" ? "tab-active" : ""}`}
+            aria-pressed={language === "ar"}
+          >
+            AR
+          </button>
+        </div>
         <span className="ml-auto text-[12px] text-ink-3">
           {topics.isLoading
             ? "Loading…"
@@ -255,6 +304,7 @@ export default function TopicsPage(): JSX.Element {
               onUse={handleUse}
               onArchive={handleArchive}
               isUsing={usingTopicId === topic.id}
+              language={language}
             />
           ))}
         </div>

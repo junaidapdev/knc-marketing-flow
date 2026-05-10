@@ -25,9 +25,25 @@ interface Props {
   onUse: (topic: Topic) => void;
   onArchive: (topic: Topic) => void;
   isUsing: boolean;
+  // Display language for title + description. The card falls back to the
+  // other language if the requested one is empty (older topics may only
+  // have one language populated).
+  language: "en" | "ar";
 }
 
-export function TopicCard({ topic, branch, onUse, onArchive, isUsing }: Props): JSX.Element {
+// Pick the right field for the active language, falling back to the
+// other if it's empty. Topics created before migration 0045 have only
+// one of the pair populated.
+function pickLocalized(
+  primary: string | null | undefined,
+  fallback: string | null | undefined,
+): string | null {
+  if (primary && primary.trim().length > 0) return primary;
+  if (fallback && fallback.trim().length > 0) return fallback;
+  return null;
+}
+
+export function TopicCard({ topic, branch, onUse, onArchive, isUsing, language }: Props): JSX.Element {
   const [confirmingArchive, setConfirmingArchive] = useState(false);
 
   const patternName = useMemo(() => {
@@ -49,14 +65,28 @@ export function TopicCard({ topic, branch, onUse, onArchive, isUsing }: Props): 
     >
       <header className="flex items-start justify-between gap-3 mb-2">
         <div className="min-w-0 flex-1">
-          <h3 className="font-serif text-[16px] tracking-tight text-ink leading-tight">
-            {topic.title}
+          <h3
+            className="font-serif text-[16px] tracking-tight text-ink leading-tight"
+            dir={language === "ar" ? "rtl" : "ltr"}
+          >
+            {language === "ar"
+              ? (pickLocalized(topic.title, topic.titleEn) ?? topic.title)
+              : (pickLocalized(topic.titleEn, topic.title) ?? topic.title)}
           </h3>
-          {topic.description && (
-            <p className="text-[12.5px] text-ink-3 mt-1.5 leading-relaxed">
-              {topic.description}
-            </p>
-          )}
+          {(() => {
+            const desc =
+              language === "ar"
+                ? pickLocalized(topic.description, topic.descriptionEn)
+                : pickLocalized(topic.descriptionEn, topic.description);
+            return desc ? (
+              <p
+                className="text-[12.5px] text-ink-3 mt-1.5 leading-relaxed whitespace-pre-line"
+                dir={language === "ar" ? "rtl" : "ltr"}
+              >
+                {desc}
+              </p>
+            ) : null;
+          })()}
         </div>
         <span
           className={`chip flex-shrink-0 ${STATUS_CHIP[topic.status]}`}

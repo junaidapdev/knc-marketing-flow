@@ -39,6 +39,12 @@ const requestSchema = z.object({
 // poison the whole batch — invalid suggestions are skipped, not rejected.
 const suggestionSchema = z.object({
   title: z.string().min(3).max(200),
+  // English companion fields — both required by the prompt; tolerated
+  // as optional here so a partial response (Arabic-only or English-only)
+  // still saves rather than silently dropping the whole row.
+  title_en: z.string().min(3).max(200).nullable().optional(),
+  description: z.string().min(1).max(2000).nullable().optional(),
+  description_en: z.string().min(1).max(2000).nullable().optional(),
   pattern_id: z.string().regex(PATTERN_ID_REGEX),
   suggested_branch: z.string().min(1).max(120).nullable().optional(),
   theme: z.string().min(1).max(200),
@@ -181,11 +187,49 @@ function buildSuggesterPrompt(args: {
   // Note: OpenAI requires the word "JSON" in the prompt when using
   // response_format: { type: "json_object" }. The schema instruction below
   // satisfies that.
-  return `You are an AI content strategist for Kayan Sweets, a Saudi confectionery retail chain. You generate fresh, on-brand short-form video topic ideas.
+  return `You are a Saudi content strategist for Kayan Sweets, a Saudi confectionery retail chain. You generate fresh, on-brand short-form video TOPIC IDEAS — not full scripts. Each topic is a brief the marketer turns into a video later.
 
 Brand voice (raw config):
 ${JSON.stringify(voiceConfig)}
 ${dnaBlock}
+
+# DIALECT CONTRACT (apply to every Arabic field — title, description)
+
+You MUST write Arabic in Saudi colloquial dialect (لهجة سعودية، نجدية أو حجازية). NOT MSA. NOT Egyptian (no إيه / ازاي / دلوقتي). NOT Levantine (no شو / كيف الحال).
+
+Required Saudi markers used by the real Kayan creator (use these naturally):
+- Demonstratives: هذي / هذا / هذيلك (NOT هذه / هؤلاء)
+- Relative pronouns: الي (NOT التي / الذي)
+- Future tense: حنبيعه / حتاخذو / حتشوفها / حتجيكم (with حـ prefix)
+- Possessive / "with": معاه / معاها / معاكم
+- "Sold for": ينباع بـ / تنباع بـ
+- Pricing format: "X ريال و Y هللة" or "X.YY هللة" (riyal + halala split)
+- Casual fillers: يعني / بس / كذا / دحين / عشان / بدال / والله / وربي
+
+Kayan-specific creator vocabulary observed from real reviewed scripts:
+- Hooks: "هذي أطول فاتورة حتشوفها بحياتك"، "أكثر منتج تنتظروه"، "الترند وصل"، "أحد شايل هم X؟ موضوعك عندي"
+- Confidence claims: "أقوى عرض في السنة"، "لأول مره بالتاريخ"، "بأقل سعر في السوق"، "حاجة مرة رهيبة"
+- Reciprocity framing: "عيدية مننا لكم"، "راعين الأول وسابقينا بالطيب"، "وكنا نقدر نسوي عليها عرض ونبيعها بـ X لكن..."
+- Sensory demos: "والله فرمت اللحم في ٢٠ ثانية بس"، "ما تحس بغثاثة"، "من خفتها تاكل حبة ورا حبة"
+- Saudi reactions: ماشاء الله / كفو / كفو عليك / يا سلام / يا لطييييف / ألف عافية عليكم / تستاه
+- "I got you" framing: "موضوعك عندي"
+- Sound like a real Saudi creator holding a phone, NOT a marketing translator. Spoken, warm, direct.
+
+# TOPIC ANGLE PALETTE (pick 1-2 angles per topic — never invent generic ones)
+
+1. Aggressive price hook — "longest receipt", "lowest in the market", "biggest savings ever"
+2. Trend-anchored — "الترند وصل", new arrival of a viral product
+3. Occasion-anchored — Ramadan, Eid, Iftar, Eid distributions, summer, back-to-school
+4. Reciprocity gift-to-followers — "we could've sold for X, but you came first, so it's our gift to you"
+5. Behind-the-scenes / supplier visit — factory tour, manufacturer interview, "صنع في السعودية"
+6. Sensory quality demo — taste, texture, speed (the meat grinder shot), weight
+7. Problem-solution — "أحد شايل هم X؟ موضوعك عندي" — name a worry, then solve it
+8. Saudi-pride — "صنع في السعودية"، "أيادي سعودية", local craftsmanship
+9. Money-back guarantee — "if you don't love it, we refund you fully even if the box is opened"
+
+# PRICE RULE
+
+DO NOT invent specific prices. Use placeholders [السعر القديم] and [السعر الجديد] in Arabic, and [old price] / [new price] in English. The marketer fills in real numbers when they record.
 
 # RECENT ACTIVITY (last ${windowDays} days)
 - Patterns used: ${usedPatternsLine}
@@ -202,19 +246,53 @@ ${dnaBlock}
 - Topics already in queue (don't duplicate near-matches): ${queuedLine}
 ${occasionLine}
 
+# FEW-SHOT EXAMPLES (match this voice and structure)
+
+Example A — Lucerne Swiss chocolate, supplier-visit + reciprocity + return guarantee:
+{
+  "title": "لوسيرن السويسري بأيادي سعودية - زرنا ساديا في جدة",
+  "title_en": "Swiss Lucerne in Saudi hands — we visited Sadia in Jeddah",
+  "description": "نمشي مع شركة ساديا في مصنعهم بجدة، نقابل المهندس حسام والمدير ماتيوس. نعرض ٣ نكهات لوسيرن: كرات كرنشي بحشوة كراميل، شوكلاتة محشية كرنشي، وأصابع شوكلاتة بحشوة لوز. نضمن استرجاع كامل الفلوس حتى لو البوكس مفتوح. ينباع بـ [السعر القديم]، نحن بـ [السعر الجديد]. صنع في السعودية، فريش من المصنع.",
+  "description_en": "Behind-the-scenes visit to Sadia's Jeddah factory with engineer Hossam and manager Mateus. Showcase 3 Lucerne flavors: caramel-filled crunchy bites, crunch-filled chocolate, and almond chocolate fingers. Money-back guarantee even if the box is opened. Saudi-made, fresh from the factory. Price contrast: [old price] → [new price].",
+  "pattern_id": "P9",
+  "suggested_branch": null,
+  "theme": "lucerne supplier visit",
+  "occasion": "regular",
+  "entry_type": "instagram_reel",
+  "reasoning": "Behind-the-scenes + reciprocity + return guarantee — high-trust angle, Saudi-pride bonus."
+}
+
+Example B — Eid distributions, problem-solution + price ladder:
+{
+  "title": "أحد شايل هم توزيعات العيد دحين؟ موضوعك عندي",
+  "title_en": "Worried about Eid distributions? I got you covered",
+  "description": "نبدأ بسؤال يلامس كل بيت قبل العيد، ثم نعرض البوكسات بـ [السعر الجديد] بدال [السعر القديم] في السوق. نشوف الترند الحين ونقترح ايش تحطو فيها (حلاوة نظارة، حلاوة مصاص، كت كات، ويفر تولا — كل وحده بـ [السعر الجديد]). نختم بمشهد الفلوس داخل التوزيعة وقفلة 'ولا التوزيعة مالها داعي'.",
+  "description_en": "Open with a question every household worries about before Eid, then show the distribution boxes at [new price] vs [old price] in the market. Walk through trending fillers (sunglasses candy, sucker candy, KitKat miniatures, Tola wafers) each at [new price]. Close on the cash-inside-the-box gag.",
+  "pattern_id": "P3",
+  "suggested_branch": "Al Salama",
+  "theme": "eid distributions boxes",
+  "occasion": "eid",
+  "entry_type": "instagram_reel",
+  "reasoning": "Eid is upcoming + 'موضوعك عندي' is a proven high-engagement Kayan opener."
+}
+
 # TASK
-Generate ${count} fresh topic ideas. Prioritize stale branches + stale patterns. Each suggestion must follow this exact JSON structure inside an "items" array:
+
+Generate ${count} fresh topic ideas. Prioritize stale branches + stale patterns. Match the dialect and structure of the few-shot examples above. Output ONLY the JSON object below — no commentary.
 
 {
   "items": [
     {
-      "title": "<short working title, 5-12 words>",
+      "title": "<Saudi-Arabic, hook-style — what would catch a Saudi scroller, 5-12 words>",
+      "title_en": "<English plain summary, 5-12 words>",
+      "description": "<Saudi-Arabic, 2-4 sentences explaining the angle, the products/setup, and the structure beats. Use prices placeholders [السعر القديم] / [السعر الجديد].>",
+      "description_en": "<English plain summary, 2-4 sentences. Use [old price] / [new price] placeholders.>",
       "pattern_id": "<one of P1-P9>",
-      "suggested_branch": "<exact branch name from voice config, or null if pattern doesn't need branch focus>",
-      "theme": "<focus product or angle, 3-8 words, e.g. 'imported chocolates aisle'>",
+      "suggested_branch": "<exact branch name from voice config, or null if not branch-specific>",
+      "theme": "<focus product or angle, 3-8 words, English or Arabic — internal label>",
       "occasion": "<one of: regular, ramadan, eid, national_day, mothers_day, fathers_day, back_to_school, summer, derby_weekend, riyadh_season>",
       "entry_type": "<one of: tiktok_video, instagram_reel, instagram_story, snapchat_story, shop_activity, influencer_collab, offer, general>",
-      "reasoning": "<one sentence: why this combo, why now>"
+      "reasoning": "<one English sentence: why this combo, why now>"
     }
     // ... ${count} total
   ]
@@ -225,6 +303,7 @@ Rules:
 - suggested_branch MUST exactly match a branch name in voice config, or be null.
 - entry_type defaults to "instagram_reel" unless the topic clearly fits another format.
 - DO NOT repeat queued topics or recent themes.
+- DO NOT invent specific prices — use the placeholders.
 - DO NOT include any commentary outside the JSON.`;
 }
 
@@ -450,7 +529,12 @@ Deno.serve(async (req) => {
   const rowsToInsert = validated.map((s) => ({
     brand_id: brandId,
     title: s.title,
-    description: s.reasoning ?? null,
+    title_en: s.title_en ?? null,
+    // Use the AI's `description` (the angle write-up). Fall back to
+    // `reasoning` for legacy callers and earlier prompt versions that
+    // didn't emit a description field.
+    description: s.description ?? s.reasoning ?? null,
+    description_en: s.description_en ?? null,
     pattern_id: s.pattern_id,
     branch_id: s.suggested_branch
       ? (branchByName.get(s.suggested_branch.toLowerCase()) ?? null)

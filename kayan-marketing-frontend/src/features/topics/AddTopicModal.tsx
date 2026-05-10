@@ -16,17 +16,47 @@ import { logger } from "../../utils/logger";
 
 const ENTRY_TYPE_VALUES = Object.values(ENTRY_TYPES) as [EntryType, ...EntryType[]];
 
-const formSchema = z.object({
-  title: z.string().min(3, "Title must be at least 3 characters.").max(200),
-  description: z.string().max(2000).optional(),
-  patternId: z.string().regex(/^P\d{1,2}$/).or(z.literal("")).optional(),
-  branchId: z.string().optional(),
-  theme: z.string().max(200).optional(),
-  occasion: z.string().optional(),
-  entryType: z.enum(ENTRY_TYPE_VALUES),
-  priority: z.coerce.number().int().min(0).max(100),
-  notes: z.string().max(5000).optional(),
-});
+const formSchema = z
+  .object({
+    title: z.string().max(200).optional(),
+    titleEn: z.string().max(200).optional(),
+    description: z.string().max(2000).optional(),
+    descriptionEn: z.string().max(2000).optional(),
+    patternId: z.string().regex(/^P\d{1,2}$/).or(z.literal("")).optional(),
+    branchId: z.string().optional(),
+    theme: z.string().max(200).optional(),
+    occasion: z.string().optional(),
+    entryType: z.enum(ENTRY_TYPE_VALUES),
+    priority: z.coerce.number().int().min(0).max(100),
+    notes: z.string().max(5000).optional(),
+  })
+  .superRefine((data, ctx) => {
+    // At least one of the two title languages must be filled, and that
+    // one must hit the 3-char minimum.
+    const ar = (data.title ?? "").trim();
+    const en = (data.titleEn ?? "").trim();
+    if (ar.length === 0 && en.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["title"],
+        message: "Add at least one title (Arabic or English).",
+      });
+    }
+    if (ar.length > 0 && ar.length < 3) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["title"],
+        message: "Arabic title must be at least 3 characters.",
+      });
+    }
+    if (en.length > 0 && en.length < 3) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["titleEn"],
+        message: "English title must be at least 3 characters.",
+      });
+    }
+  });
 
 type FormInput = z.infer<typeof formSchema>;
 
@@ -49,7 +79,9 @@ export function AddTopicModal({ brandId, isOpen, onClose }: Props): JSX.Element 
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: "",
+      titleEn: "",
       description: "",
+      descriptionEn: "",
       patternId: "",
       branchId: "",
       theme: "",
@@ -78,11 +110,27 @@ export function AddTopicModal({ brandId, isOpen, onClose }: Props): JSX.Element 
   }, [isOpen, reset]);
 
   const onSubmit = async (input: FormInput): Promise<void> => {
+    // Whichever title was filled becomes the primary `title` (DB-required
+    // historically). If only English was provided, fall it into `title`
+    // and leave `titleEn` null. Mirrors how the AI suggester populates
+    // both halves when it has them, only one half otherwise.
+    const arTitle = input.title?.trim() ?? "";
+    const enTitle = input.titleEn?.trim() ?? "";
+    const titleField = arTitle.length > 0 ? arTitle : enTitle;
+    const titleEnField = arTitle.length > 0 && enTitle.length > 0 ? enTitle : null;
+
+    const arDesc = input.description?.trim() ?? "";
+    const enDesc = input.descriptionEn?.trim() ?? "";
+    const descField = arDesc.length > 0 ? arDesc : enDesc.length > 0 ? enDesc : null;
+    const descEnField = arDesc.length > 0 && enDesc.length > 0 ? enDesc : null;
+
     try {
       await createTopic.mutateAsync({
         brandId,
-        title: input.title,
-        description: input.description?.trim() ? input.description : null,
+        title: titleField,
+        titleEn: titleEnField,
+        description: descField,
+        descriptionEn: descEnField,
         patternId: input.patternId ? (input.patternId as PatternId) : null,
         branchId: input.branchId || null,
         theme: input.theme?.trim() ? input.theme : null,
@@ -123,22 +171,60 @@ export function AddTopicModal({ brandId, isOpen, onClose }: Props): JSX.Element 
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="px-4 sm:px-6 py-5 space-y-4">
-          <div>
-            <label className="field-label">Title</label>
-            <input
-              type="text"
-              placeholder="e.g., Boxed chocolates Mother's Day showcase"
-              {...register("title")}
-              className="form-input"
-            />
-            {errors.title && (
-              <p className="text-rose-deep text-[12px] mt-1.5">{errors.title.message}</p>
-            )}
+          <p className="text-[11.5px] text-ink-3 italic">
+            Fill in either Arabic, English, or both. At least one title is required.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="field-label">Title (Arabic)</label>
+              <input
+                type="text"
+                dir="rtl"
+                placeholder="مثلاً: شوكولاتات العيد الفخمة بـ ١٦.٨٠ هللة"
+                {...register("title")}
+                className="form-input"
+              />
+              {errors.title && (
+                <p className="text-rose-deep text-[12px] mt-1.5">
+                  {errors.title.message}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="field-label">Title (English)</label>
+              <input
+                type="text"
+                placeholder="e.g., Boxed chocolates Mother's Day showcase"
+                {...register("titleEn")}
+                className="form-input"
+              />
+              {errors.titleEn && (
+                <p className="text-rose-deep text-[12px] mt-1.5">
+                  {errors.titleEn.message}
+                </p>
+              )}
+            </div>
           </div>
 
-          <div>
-            <label className="field-label">Description (optional)</label>
-            <textarea rows={2} {...register("description")} className="form-textarea" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="field-label">Description (Arabic, optional)</label>
+              <textarea
+                rows={3}
+                dir="rtl"
+                {...register("description")}
+                className="form-textarea"
+              />
+            </div>
+            <div>
+              <label className="field-label">Description (English, optional)</label>
+              <textarea
+                rows={3}
+                {...register("descriptionEn")}
+                className="form-textarea"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

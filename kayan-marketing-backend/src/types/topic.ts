@@ -9,7 +9,12 @@ export interface Topic {
   id: string;
   brandId: string;
   title: string;
+  // English companion fields added in migration 0045. Existing rows
+  // pre-migration have these as null; UI falls back to `title` /
+  // `description` when the requested language is missing.
+  titleEn: string | null;
   description: string | null;
+  descriptionEn: string | null;
   patternId: PatternId | null;
   branchId: string | null;
   theme: string | null;

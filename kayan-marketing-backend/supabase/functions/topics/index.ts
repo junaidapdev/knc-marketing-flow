@@ -37,7 +37,11 @@ const patternIdSchema = z
 const createSchema = z.object({
   brandId: z.string().uuid(),
   title: z.string().min(3).max(200),
+  // English companions (migration 0045). Optional: a topic can be
+  // saved with only Arabic, only English, or both.
+  titleEn: z.string().max(200).nullable().optional(),
   description: z.string().max(2000).nullable().optional(),
+  descriptionEn: z.string().max(2000).nullable().optional(),
   patternId: patternIdSchema,
   branchId: z.string().uuid().nullable().optional(),
   theme: z.string().max(200).nullable().optional(),
@@ -49,7 +53,9 @@ const createSchema = z.object({
 
 const updateSchema = z.object({
   title: z.string().min(3).max(200).optional(),
+  titleEn: z.string().max(200).nullable().optional(),
   description: z.string().max(2000).nullable().optional(),
+  descriptionEn: z.string().max(2000).nullable().optional(),
   patternId: patternIdSchema,
   branchId: z.string().uuid().nullable().optional(),
   theme: z.string().max(200).nullable().optional(),
@@ -234,7 +240,9 @@ Deno.serve(async (req) => {
       .insert({
         brand_id: parsed.data.brandId,
         title: parsed.data.title,
+        title_en: parsed.data.titleEn ?? null,
         description: parsed.data.description ?? null,
+        description_en: parsed.data.descriptionEn ?? null,
         pattern_id: parsed.data.patternId ?? null,
         branch_id: parsed.data.branchId ?? null,
         theme: parsed.data.theme ?? null,
@@ -267,7 +275,9 @@ Deno.serve(async (req) => {
 
     const dbInput: Record<string, unknown> = {};
     if (parsed.data.title !== undefined) dbInput.title = parsed.data.title;
+    if (parsed.data.titleEn !== undefined) dbInput.title_en = parsed.data.titleEn;
     if (parsed.data.description !== undefined) dbInput.description = parsed.data.description;
+    if (parsed.data.descriptionEn !== undefined) dbInput.description_en = parsed.data.descriptionEn;
     if (parsed.data.patternId !== undefined) dbInput.pattern_id = parsed.data.patternId;
     if (parsed.data.branchId !== undefined) dbInput.branch_id = parsed.data.branchId;
     if (parsed.data.theme !== undefined) dbInput.theme = parsed.data.theme;
