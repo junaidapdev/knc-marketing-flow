@@ -22,6 +22,12 @@ export function showsScriptField(type: EntryType): boolean {
   return VIDEO_TYPES.has(type);
 }
 
+// Director-facing shot list. Only video types use it — stories and
+// captioned posts don't need a separate shot section.
+export function showsShotDirectionsField(type: EntryType): boolean {
+  return VIDEO_TYPES.has(type);
+}
+
 export function showsCaptionField(type: EntryType): boolean {
   return VIDEO_TYPES.has(type) || STORY_TYPES.has(type) || CAPTION_ONLY_TYPES.has(type);
 }

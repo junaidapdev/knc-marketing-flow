@@ -33,6 +33,9 @@ export interface CalendarEntry {
   metadata: Record<string, unknown>;
   // Authoring fields (migration 0020).
   script: string | null;
+  // Production direction list (migration 0043) — separate field from
+  // script so the spoken talent copy stays clean.
+  shotDirections: string | null;
   caption: string | null;
   hashtags: string | null;
   // Production rhythm (migration 0025).

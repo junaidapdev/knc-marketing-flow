@@ -407,9 +407,21 @@ function buildSystemPrompt(
   productsBlock = "",
   marketingEventsBlock = "",
 ): string {
+  // Saudi-dialect contract — applied to every AI template. Without this
+  // the model leans toward MSA or pan-Arab phrasing, which the marketer
+  // flagged as unnatural for Kayan's audience. The required vocabulary
+  // and forbidden patterns below give the model concrete rails.
+  const dialectContract = `\nLanguage rules (apply to every Arabic line you produce):
+- Write in Saudi colloquial dialect (لهجة سعودية، نجدية أو حجازية). NOT Modern Standard Arabic.
+- NOT Egyptian (no إيه / ازاي / دلوقتي), NOT Levantine (no شو / كيف الحال).
+- Use these Saudi markers naturally where they fit: ابغى / ابغاكم, خليني / خلني, مستعدين, يالله, تبغون / تبغوا, وش / ايش, خلنا نشوف, تابعوا, تعالوا.
+- Use these Saudi reactions when something works: ماشاء الله, كفو, كفو عليك, يا سلام, يا لطييييف.
+- Sound like a real Saudi creator talking to a phone camera, not a translated marketing brief. Spoken, warm, direct.
+- Drawn-out emphasis is encouraged: "يا لطييييف", "حلوووو".`;
+
   const baseVoice = `You are an AI assistant for Kayan Sweets, a Saudi confectionery retail chain.
 Brand voice: ${JSON.stringify(voiceConfig)}.
-Always respect this voice. Provide bilingual output (Arabic + English) when generating content.`;
+Always respect this voice.${dialectContract}`;
 
   // Brand DNA is the marketer's long-form bible — values, pillars, audience,
   // do/don't, examples. Injected verbatim so generation sounds like Kayan,
@@ -438,11 +450,32 @@ Always respect this voice. Provide bilingual output (Arabic + English) when gene
   switch (template) {
     case "generate_script":
       return `${baseVoice}${dnaBlock}${marketingEventsBlock}${productsSection}${briefBlock}
-Your task: write a 15-60 second short-form video script with a strong 3-second hook, clear product showcase, and CTA. Provide both Arabic and English versions with shot directions in [brackets].
+Your role: a Saudi content creator scripting a short-form video for talent to read direct-to-camera. You are NOT a video producer writing a treatment for a director — production direction goes in its own section, separate from the spoken copy.
+
+Your task: write a 15-60 second short-form video script.
+
+Script-section rules (## Script):
+- Saudi colloquial Arabic ONLY. No English in this section. No MSA. No bracketed shot direction.
+- Single narrator unless the pattern explicitly calls for two voices. Don't invent "Commentator 1 / Commentator 2" labels.
+- Spoken, conversational — what the talent actually says when holding the phone.
+- Open with a hook the talent says in voice (a question, a setup, a claim) — not a description of a shot.
+- End with a CTA that matches the pattern (comments-bait for evaluation patterns, "be next" for challenge patterns, etc.).
+
+Shot-directions-section rules (## Shot directions):
+- Bilingual short imperatives — one line per shot, Arabic / English on the same line separated by " — ".
+- Practical for the camera and director: "Close-up on packaging — لقطة قريبة على التغليف", "Timer overlay — لقطة على المؤقت".
+- Keep each line under ~80 characters. Maximum 10 lines.
+- This is where ALL bracketed direction lives. The Script section stays clean.
+
+Caption + hashtags rules:
+- Bilingual (Arabic + English). Caption ready to paste. 5-8 hashtags mixing branded (#KayanSweets, #حلويات_كيان) and trending.
 ${STRUCTURED_NOTE}
 
 ## Script
-[Full script. Include hook (first 3 seconds), body, CTA. Add shot directions in [brackets]. Mark Arabic and English clearly with sub-headings like **Arabic** / **English**.]
+[Saudi colloquial Arabic only. Hook → body → CTA, written as one flowing voiceover the talent reads to camera. No brackets, no English, no shot direction in this section.]
+
+## Shot directions
+[Bilingual short shot list. Each line: "<English imperative> — <Arabic imperative>". Under 10 lines.]
 
 ## Caption
 [Publishing caption — bilingual reads, ready to paste.]

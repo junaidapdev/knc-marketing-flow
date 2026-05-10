@@ -11,7 +11,7 @@ export const PATTERNS = [
   { id: "P5", name: "Call-a-Friend Shopping Dash" },
   { id: "P6", name: "Internal Hero Reveal" },
   { id: "P7", name: "Event Prediction Giveaway" },
-  { id: "P8", name: "Dual-Commentator Dash" },
+  { id: "P8", name: "Treasure Hunt Challenge" },
   { id: "P9", name: "Quality Objection Rebuttal" },
 ] as const;
 

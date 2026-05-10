@@ -41,6 +41,7 @@ export interface CalendarEntry {
   // modal does not write these — only the Entry Detail Panel's Content
   // section does (auto-saves on blur).
   script: string | null;
+  shotDirections: string | null;
   caption: string | null;
   hashtags: string | null;
   // Production rhythm — see migration 0025 / Settings → Production rhythm.

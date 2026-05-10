@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Hash,
   Clapperboard,
+  Camera,
   Scissors,
 } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
@@ -51,6 +52,7 @@ import { useAIStore } from "../../stores/ai-store";
 import {
   needsContentAuthoring,
   showsScriptField,
+  showsShotDirectionsField,
   showsCaptionField,
   showsHashtagsField,
 } from "./content-helpers";
@@ -80,13 +82,17 @@ const STATUS_LABEL: Record<EntryStatus, string> = {
 
 // Platform-aware soft limits. The DB allows much more — these are the
 // numbers the marketer actually cares about.
-const SOFT_LIMIT: Record<"script" | "caption" | "hashtags", number> = {
+const SOFT_LIMIT: Record<
+  "script" | "shotDirections" | "caption" | "hashtags",
+  number
+> = {
   script: 4000,
+  shotDirections: 1500,
   caption: 2200,
   hashtags: 30,
 };
 
-type ContentField = "script" | "caption" | "hashtags";
+type ContentField = "script" | "shotDirections" | "caption" | "hashtags";
 
 interface Props {
   entryId: string | null;
@@ -508,6 +514,15 @@ function MainPane({
                 isExpanded={expanded === "script"}
                 onToggle={() => onToggle("script")}
                 onEnterFocus={() => onEnterFocus("script")}
+              />
+            )}
+            {showsShotDirectionsField(entry.type) && (
+              <ContentCard
+                entry={entry}
+                field="shotDirections"
+                isExpanded={expanded === "shotDirections"}
+                onToggle={() => onToggle("shotDirections")}
+                onEnterFocus={() => onEnterFocus("shotDirections")}
               />
             )}
             {showsCaptionField(entry.type) && (
@@ -1107,9 +1122,11 @@ function ContentCard({
   const value =
     field === "script"
       ? (entry.script ?? "")
-      : field === "caption"
-        ? (entry.caption ?? "")
-        : (entry.hashtags ?? "");
+      : field === "shotDirections"
+        ? (entry.shotDirections ?? "")
+        : field === "caption"
+          ? (entry.caption ?? "")
+          : (entry.hashtags ?? "");
   const count = field === "hashtags" ? (value.match(/#[^\s#]+/g) ?? []).length : value.length;
   const ratio = count / SOFT_LIMIT[field];
   const overLimit = count > SOFT_LIMIT[field];
@@ -1213,7 +1230,8 @@ const META_FOR_FIELD: Record<
   script: {
     label: "Script",
     icon: <FileText size={14} />,
-    placeholder: "Hook, body, CTA. Add shot directions in [brackets].",
+    placeholder:
+      "Spoken Saudi Arabic — what the talent reads to camera. Shot directions go in their own section below.",
     rows: 8,
     template: PROMPT_TEMPLATES.GENERATE_SCRIPT,
     buildPrompt: (entry) => {
@@ -1227,9 +1245,25 @@ const META_FOR_FIELD: Record<
         const branchBit = entry.branch?.name ? ` Feature ${entry.branch.name} in the CTA.` : "";
         return `Generate a ${patternName} script for: "${entry.title}".${themeBit}${branchBit}`;
       }
-      return `Generate a full TikTok-style script for this entry: "${entry.title}". Include hook, body, CTA, with shot directions.`;
+      return `Generate a full TikTok-style script for this entry: "${entry.title}". Saudi Arabic, single narrator, conversational.`;
     },
     limitHint: "Most TikTok scripts work best under 4,000 chars.",
+    // Script is Saudi Arabic only now — language tabs hide naturally
+    // when the AI doesn't emit **Arabic** / **English** sub-headings.
+    supportsLangTabs: false,
+  },
+  shotDirections: {
+    label: "Shot directions",
+    icon: <Camera size={14} />,
+    placeholder:
+      "Bilingual shot list — short, practical lines for the camera/director. Generated alongside the script.",
+    rows: 5,
+    template: PROMPT_TEMPLATES.GENERATE_SCRIPT,
+    buildPrompt: (entry) =>
+      `Generate the shot direction list for this entry: "${entry.title}".`,
+    limitHint: "Keep each line short — under 12 lines total reads cleanest on a shoot day.",
+    // Bilingual list — keeping language tabs lets the user view AR-only
+    // / EN-only / both depending on who's reading the call sheet.
     supportsLangTabs: true,
   },
   caption: {
@@ -1373,30 +1407,36 @@ function ExpandedCardBody({
       if (!result.success) throw new Error(result.error.message);
       const generated = result.data.assistantMessage;
 
-      // The AI returns the full structured payload (## Script / ## Caption /
-      // ## Hashtags) regardless of which field the user clicked. Split it so
-      // each section lands in its own DB column rather than dumping the whole
-      // markdown into one field.
+      // The AI returns the full structured payload (## Script /
+      // ## Shot directions / ## Caption / ## Hashtags) regardless of
+      // which field the user clicked. Split it so each section lands in
+      // its own DB column rather than dumping the whole markdown into
+      // one field.
       //
-      // Fallback: if no recognized headings are present (free-form / older
-      // template), save the raw text into the field the user clicked.
+      // Fallback: if no recognized headings are present (free-form /
+      // older template), save the raw text into the field the user
+      // clicked.
       const parsed = parseAIResponse(generated);
       const patch: Record<string, string> = {};
       if (hasParsedSections(parsed)) {
         if (parsed.script) patch.script = parsed.script;
+        if (parsed.shotDirections) patch.shotDirections = parsed.shotDirections;
         if (parsed.caption) patch.caption = parsed.caption;
         if (parsed.hashtags) patch.hashtags = parsed.hashtags;
       }
 
-      // The local textarea shows ONLY the section that matches the field the
-      // user clicked Generate on. If parsing produced that section, prefer it;
-      // otherwise show the raw response so nothing's silently dropped.
+      // The local textarea shows ONLY the section that matches the field
+      // the user clicked Generate on. If parsing produced that section,
+      // prefer it; otherwise show the raw response so nothing's silently
+      // dropped.
       const sectionForThisField =
         field === "script"
           ? parsed.script
-          : field === "caption"
-            ? parsed.caption
-            : parsed.hashtags;
+          : field === "shotDirections"
+            ? parsed.shotDirections
+            : field === "caption"
+              ? parsed.caption
+              : parsed.hashtags;
       const localText = sectionForThisField ?? (Object.keys(patch).length === 0 ? generated : "");
 
       setDraft(localText);
@@ -1595,9 +1635,11 @@ function ExpandedCardOnly({
   const value =
     field === "script"
       ? (entry.script ?? "")
-      : field === "caption"
-        ? (entry.caption ?? "")
-        : (entry.hashtags ?? "");
+      : field === "shotDirections"
+        ? (entry.shotDirections ?? "")
+        : field === "caption"
+          ? (entry.caption ?? "")
+          : (entry.hashtags ?? "");
 
   return (
     <div className="rounded-md bg-cream-2/40">

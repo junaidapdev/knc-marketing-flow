@@ -141,6 +141,10 @@ const updateSchema = z.object({
   branchId: z.string().uuid().nullable().optional(),
   // Authoring fields written asynchronously by the content creator.
   script: z.string().max(20000).nullable().optional(),
+  // Director-facing shot list, kept separate from the spoken script
+  // (migration 0043). Bilingual short imperatives, populated by the
+  // AI Generate flow or hand-edited.
+  shotDirections: z.string().max(10000).nullable().optional(),
   caption: z.string().max(5000).nullable().optional(),
   hashtags: z.string().max(2000).nullable().optional(),
   // Production rhythm fields — see migration 0025.
@@ -361,6 +365,7 @@ Deno.serve(async (req) => {
     if (parsed.data.notes !== undefined) dbInput.notes = parsed.data.notes;
     if (parsed.data.branchId !== undefined) dbInput.branch_id = parsed.data.branchId;
     if (parsed.data.script !== undefined) dbInput.script = parsed.data.script;
+    if (parsed.data.shotDirections !== undefined) dbInput.shot_directions = parsed.data.shotDirections;
     if (parsed.data.caption !== undefined) dbInput.caption = parsed.data.caption;
     if (parsed.data.hashtags !== undefined) dbInput.hashtags = parsed.data.hashtags;
     if (parsed.data.productionMode !== undefined) dbInput.production_mode = parsed.data.productionMode;

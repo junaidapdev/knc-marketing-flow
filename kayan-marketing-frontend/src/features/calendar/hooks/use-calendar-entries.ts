@@ -109,6 +109,7 @@ export interface UpdateEntryInput {
   notes?: string | null;
   branchId?: string | null;
   script?: string | null;
+  shotDirections?: string | null;
   caption?: string | null;
   hashtags?: string | null;
   productionMode?: "batch" | "adhoc";

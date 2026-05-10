@@ -192,7 +192,10 @@ function MessageBubble({ role, content, placeholder = false }: BubbleProps): JSX
   const isAssistant = role === "assistant";
   const canSaveToEntry = isAssistant && context.type === "entry" && context.contextId !== null;
   const parsed: ParsedAISections = useMemo(
-    () => (isAssistant && !placeholder ? parseAIResponse(content) : { script: null, caption: null, hashtags: null }),
+    () =>
+      isAssistant && !placeholder
+        ? parseAIResponse(content)
+        : { script: null, shotDirections: null, caption: null, hashtags: null },
     [isAssistant, placeholder, content],
   );
   const structured = hasParsedSections(parsed);
@@ -240,11 +243,15 @@ function BubbleActions({
   return (
     <div className="flex flex-wrap items-center gap-3 mt-2.5 pt-2.5 border-t border-line text-[11.5px]">
       <CopyButton text={content} />
-      {/* Per-section save buttons appear when AI returned the structured format
-          (## Script / ## Caption / ## Hashtags). Otherwise we fall back to the
-          generic "Save to notes" button for free-form responses. */}
+      {/* Per-section save buttons appear when AI returned the structured
+          format (## Script / ## Shot directions / ## Caption / ## Hashtags).
+          Otherwise we fall back to the generic "Save to notes" button for
+          free-form responses. */}
       {canSaveToEntry && structured && parsed.script && entryId && (
         <SaveFieldButton entryId={entryId} field="script" value={parsed.script} label="Save script" />
+      )}
+      {canSaveToEntry && structured && parsed.shotDirections && entryId && (
+        <SaveFieldButton entryId={entryId} field="shotDirections" value={parsed.shotDirections} label="Save shot directions" />
       )}
       {canSaveToEntry && structured && parsed.caption && entryId && (
         <SaveFieldButton entryId={entryId} field="caption" value={parsed.caption} label="Save caption" />
@@ -280,7 +287,7 @@ function CopyButton({ text }: { text: string }): JSX.Element {
 
 interface SaveFieldButtonProps {
   entryId: string;
-  field: "script" | "caption" | "hashtags" | "notes";
+  field: "script" | "shotDirections" | "caption" | "hashtags" | "notes";
   value: string;
   label: string;
 }
