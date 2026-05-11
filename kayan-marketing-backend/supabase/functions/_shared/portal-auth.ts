@@ -123,6 +123,10 @@ export async function requirePortalToken(
         "snapchat_followers",
         "niche_tags",
         "languages",
+        // Pulled so we can gate paused / blacklisted creators out of
+        // the portal without leaking *why* (same opaque 401 as invalid
+        // tokens). Admins control portal access through status.
+        "status",
       ].join(","),
     )
     .eq("portal_token", token)
@@ -130,5 +134,8 @@ export async function requirePortalToken(
     .single();
 
   if (error || !data) return { error: unauthorized() };
+  if ((data as { status?: string }).status !== "active") {
+    return { error: unauthorized() };
+  }
   return { influencer: data as unknown as PortalInfluencerRecord };
 }

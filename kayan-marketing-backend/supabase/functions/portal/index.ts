@@ -116,7 +116,44 @@ function addPlatform(
   return [...platforms, platform];
 }
 
-function toPortalView(influencer: PortalInfluencerRecord): PortalInfluencerView {
+// Minimum eligible collabs before we expose a reliability score to the
+// creator. Fewer than this and the score swings too violently with
+// each submission to be a fair signal.
+const PORTAL_RELIABILITY_MIN_COLLABS = 3;
+
+interface ReliabilityRpcResult {
+  post_rate: number | null;
+  tag_rate: number | null;
+  on_time_rate: number | null;
+  total_collabs: number;
+  total_submissions: number;
+  computed_at: string;
+}
+
+function toPortalReliabilityView(
+  rpc: ReliabilityRpcResult | null,
+): import("../_shared/portal-types.ts").PortalReliabilityView {
+  const totalCollabs = rpc?.total_collabs ?? 0;
+  if (!rpc || totalCollabs < PORTAL_RELIABILITY_MIN_COLLABS) {
+    return {
+      available: false,
+      reason: "complete_3_collabs",
+      totalCollabs,
+    };
+  }
+  return {
+    available: true,
+    postRate: rpc.post_rate,
+    tagRate: rpc.tag_rate,
+    onTimeRate: rpc.on_time_rate,
+    totalCollabs,
+  };
+}
+
+function toPortalView(
+  influencer: PortalInfluencerRecord,
+  reliability: ReliabilityRpcResult | null,
+): PortalInfluencerView {
   const platformOptions: PortalPlatformView[] = [
     {
       key: PLATFORM_TIKTOK,
@@ -148,6 +185,7 @@ function toPortalView(influencer: PortalInfluencerRecord): PortalInfluencerView 
     platforms,
     nicheTags: influencer.niche_tags,
     languages: influencer.languages,
+    reliability: toPortalReliabilityView(reliability),
   };
 }
 
@@ -288,7 +326,13 @@ Deno.serve(async (req) => {
   const route = routeAfterToken(req);
 
   if (req.method === METHOD_GET && route === null) {
-    return jsonSuccess(toPortalView(auth.influencer));
+    // RPC for reliability — failures aren't fatal; we fall back to the
+    // unavailable shape so the portal still renders the profile.
+    const { data: relData } = await db.rpc("get_influencer_reliability", {
+      p_influencer_id: auth.influencer.id,
+    });
+    const reliability = (relData as ReliabilityRpcResult | null) ?? null;
+    return jsonSuccess(toPortalView(auth.influencer, reliability));
   }
 
   if (req.method === METHOD_GET && route === ROUTE_COLLABORATIONS) {

@@ -168,7 +168,19 @@ Deno.serve(async (req) => {
   const pathParts = url.pathname.split("/").filter(Boolean);
   const baseIdx = pathParts.indexOf("influencers");
   const influencerId = pathParts[baseIdx + 1] ?? null;
+  // Sub-action segments after :id, e.g. /influencers/:id/rotate-token
+  // and /influencers/:id/status.
+  const subAction = pathParts[baseIdx + 2] ?? null;
   const isCollection = influencerId === null;
+
+  // Wraps get_influencer_reliability — failures aren't fatal here; the
+  // caller is the admin UI which renders the influencer row regardless.
+  const fetchReliability = async (id: string): Promise<unknown> => {
+    const { data } = await db.rpc("get_influencer_reliability", {
+      p_influencer_id: id,
+    });
+    return data ?? null;
+  };
 
   if (req.method === "GET" && isCollection) {
     const status = url.searchParams.get("status");
@@ -202,17 +214,111 @@ Deno.serve(async (req) => {
 
     const { data, error } = await q;
     if (error) return jsonError("INTERNAL_ERROR", error.message, 500);
-    return jsonSuccess(toCamel(data));
+
+    // Optional reliability join — opt-in to keep the default list
+    // lightweight. Used by the Influencers list page when the user
+    // turns on the reliability column / high-reliability filter.
+    const includeReliability =
+      url.searchParams.get("includeReliability") === "true";
+    if (!includeReliability) {
+      return jsonSuccess(toCamel(data));
+    }
+
+    const camelRows = toCamel<Array<{ id: string }>>(data ?? []);
+    const enriched = await Promise.all(
+      camelRows.map(async (row) => {
+        const reliability = await fetchReliability(row.id);
+        return { ...row, reliability };
+      }),
+    );
+    return jsonSuccess(enriched);
   }
 
-  if (req.method === "GET" && influencerId) {
+  if (req.method === "GET" && influencerId && !subAction) {
     const { data, error } = await db
       .from("influencers")
       .select("*")
       .eq("id", influencerId)
       .single();
     if (error) return jsonError("NOT_FOUND", "Influencer not found.", 404);
-    return jsonSuccess(toCamel(data));
+    const reliability = await fetchReliability(influencerId);
+    return jsonSuccess({
+      ...(toCamel(data) as Record<string, unknown>),
+      reliability,
+    });
+  }
+
+  // POST /influencers/:id/rotate-token — generate a fresh portal token
+  // via RPC. Returns the influencer row with the rotated token + the
+  // refreshed reliability (so the UI can re-render in one shot).
+  if (
+    req.method === "POST" &&
+    influencerId &&
+    subAction === "rotate-token"
+  ) {
+    const { data: tokenData, error: tokenError } = await db.rpc(
+      "rotate_influencer_token",
+      {
+        p_influencer_id: influencerId,
+        p_user_id: auth.userId,
+      },
+    );
+    if (tokenError) {
+      const isMissing = /not found/i.test(tokenError.message);
+      return jsonError(
+        isMissing ? "NOT_FOUND" : "INTERNAL_ERROR",
+        tokenError.message,
+        isMissing ? 404 : 500,
+      );
+    }
+    const { data: row, error: rowError } = await db
+      .from("influencers")
+      .select("*")
+      .eq("id", influencerId)
+      .single();
+    if (rowError) return jsonError("INTERNAL_ERROR", rowError.message, 500);
+    const reliability = await fetchReliability(influencerId);
+    return jsonSuccess({
+      ...(toCamel(row) as Record<string, unknown>),
+      reliability,
+      portalToken: tokenData as string,
+    });
+  }
+
+  // PATCH /influencers/:id/status — narrow convenience endpoint to flip
+  // active / paused / blacklisted without going through the full update
+  // schema (which carries every editable field).
+  if (
+    req.method === "PATCH" &&
+    influencerId &&
+    subAction === "status"
+  ) {
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return jsonError("VALIDATION_FAILED", "Invalid JSON.", 400);
+    }
+    const parsed = z
+      .object({ status: z.enum(STATUS_VALUES) })
+      .safeParse(body);
+    if (!parsed.success) {
+      return jsonError("VALIDATION_FAILED", "Validation failed.", 422, {
+        fieldErrors: parsed.error.flatten().fieldErrors,
+      });
+    }
+    const { data, error } = await db
+      .from("influencers")
+      .update({ status: parsed.data.status })
+      .eq("id", influencerId)
+      .select()
+      .single();
+    if (error) return jsonError("INTERNAL_ERROR", error.message, 500);
+    const reliability = await fetchReliability(influencerId);
+    return jsonSuccess({
+      ...(toCamel(data) as Record<string, unknown>),
+      reliability,
+    });
   }
 
   if (req.method === "POST" && isCollection) {
@@ -242,7 +348,7 @@ Deno.serve(async (req) => {
     return jsonSuccess(toCamel(data), 201);
   }
 
-  if (req.method === "PATCH" && influencerId) {
+  if (req.method === "PATCH" && influencerId && !subAction) {
     let body: unknown;
     try {
       body = await req.json();
@@ -266,7 +372,7 @@ Deno.serve(async (req) => {
     return jsonSuccess(toCamel(data));
   }
 
-  if (req.method === "DELETE" && influencerId) {
+  if (req.method === "DELETE" && influencerId && !subAction) {
     const { error } = await db
       .from("influencers")
       .delete()

@@ -25,7 +25,10 @@ import type {
   PortalCollaboration,
   PortalSubmissionView,
 } from "../types/influencer-submission";
-import type { PortalPlatformView } from "../types/portal";
+import type {
+  PortalPlatformView,
+  PortalReliabilityView,
+} from "../types/portal";
 
 function formatCount(value: number | null): string {
   if (value === null) return CREATOR_PORTAL_COPY.notSet;
@@ -152,6 +155,8 @@ export default function CreatorPortalPage(): JSX.Element {
                 />
               </div>
             </section>
+
+            <PortalReliabilitySection reliability={profile.data.reliability} />
 
             <ActiveCollaborations
               token={token ?? null}
@@ -499,6 +504,91 @@ function ChipGroup({
       ) : (
         <p className="text-[13px] text-ink-3">{empty}</p>
       )}
+    </div>
+  );
+}
+
+const PORTAL_RELIABILITY_MIN_COLLABS = 3;
+
+// Reliability section on the creator-facing portal. Gated by ≥3
+// eligible collabs — fewer than that and we show a quiet "X more to
+// go" message instead of a score that would yo-yo with each submission.
+function PortalReliabilitySection({
+  reliability,
+}: {
+  reliability: PortalReliabilityView;
+}): JSX.Element {
+  if (!reliability.available) {
+    const remaining = Math.max(
+      PORTAL_RELIABILITY_MIN_COLLABS - reliability.totalCollabs,
+      1,
+    );
+    return (
+      <section className="card">
+        <h2 className="h-card mb-2">Your reliability</h2>
+        <p className="text-[13px] text-ink-3 leading-relaxed">
+          Your reliability score appears after{" "}
+          {PORTAL_RELIABILITY_MIN_COLLABS} completed collaborations. You're{" "}
+          {remaining} away.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="card">
+      <h2 className="h-card mb-4">Your reliability</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <PortalReliabilityCard
+          label="Post rate"
+          value={reliability.postRate}
+          description="How often you post when we agree"
+        />
+        <PortalReliabilityCard
+          label="Tag rate"
+          value={reliability.tagRate}
+          description="How often you tag Kayan in your posts"
+        />
+        <PortalReliabilityCard
+          label="On-time rate"
+          value={reliability.onTimeRate}
+          description="How often you submit within 24 hours of the agreed post date"
+        />
+      </div>
+      <p className="text-[12px] text-ink-3 italic mt-4">
+        Keep your scores high to be invited to more campaigns.
+      </p>
+    </section>
+  );
+}
+
+function portalRateChipClass(value: number | null): string {
+  if (value === null) return "bg-cream-2 text-ink-3";
+  if (value >= 80) return "bg-sage text-[#2C5530]";
+  if (value >= 50) return "bg-yellow text-obsidian";
+  return "bg-rose text-[#6E2A35]";
+}
+
+function PortalReliabilityCard({
+  label,
+  value,
+  description,
+}: {
+  label: string;
+  value: number | null;
+  description: string;
+}): JSX.Element {
+  return (
+    <div className="rounded-md border border-line p-3 bg-paper">
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <span className="eyebrow">{label}</span>
+        <span
+          className={`chip ${portalRateChipClass(value)} font-semibold !text-[11px]`}
+        >
+          {value === null ? "—" : `${value}%`}
+        </span>
+      </div>
+      <p className="text-[11.5px] text-ink-3 leading-snug">{description}</p>
     </div>
   );
 }

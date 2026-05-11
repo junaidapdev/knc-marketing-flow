@@ -98,3 +98,20 @@ revive the implementation.
   • `influencer-performance/` — list by submissionId, POST (derives influencer_id from the submission), PATCH, DELETE.
 - Calendar entries Edge Function: `?influencerId=` list filter; create + update schemas require `influencerId` when `type === 'influencer_collab'`; positional RPC call updated for the new `p_influencer_id` slot.
 - Operational follow-up: `supabase db push` to land 0047; `supabase functions deploy portal influencer-submissions influencer-performance calendar-entries`.
+
+## Influencer Management Chunk 4: Reliability Score + Portal Management (DONE)
+- Migration 0048: two security-definer RPCs.
+  • `get_influencer_reliability(p_influencer_id)` returns a JSONB with `post_rate`, `tag_rate`, `on_time_rate` (each 0–100 integer or null when the denominator is 0), `total_collabs` (eligible — past target, not cancelled), `total_submissions`, `computed_at`. Post-rate is capped at 100 to absorb early-submission edge cases. On-time = `submitted_at::date <= target_date + 1 day`.
+  • `rotate_influencer_token(p_influencer_id, p_user_id)` generates a fresh portal token, stamps `portal_activated_at = now()`, returns the new token. `p_user_id` is accepted now for the planned `influencer_token_rotations` audit table (V2 follow-up — currently unused but stable).
+- `influencers` Edge Function: GET detail now merges `reliability` into the response. GET list accepts `?includeReliability=true` (opt-in to avoid the per-row RPC cost on the default load). New action routes:
+  • `POST /influencers/:id/rotate-token` — calls the RPC, returns the influencer row plus the fresh portalToken so the UI can render the new URL + WhatsApp message in one shot.
+  • `PATCH /influencers/:id/status` — narrow `{ status }` body, validates against the three-status enum, returns the updated row with reliability.
+  • Existing PATCH / DELETE guarded by `!subAction` so the sub-action paths can't fall through.
+- `portal` Edge Function: GET response now includes `reliability` — either the available shape with the three percentages + `totalCollabs`, or `{ available: false, reason: "complete_3_collabs", totalCollabs }` when below 3 collabs. Gating threshold mirrored in the frontend.
+- `_shared/portal-auth.ts`: now reads `status` from the influencers row and returns the same opaque 401 when status is anything other than `active`. Paused or blacklisted creators are gated out without leaking *why*.
+
+## V1 Influencer Management COMPLETE
+- 3 migrations (0046 influencers, 0047 submissions + performance logs + first RPC re-sign, 0048 reliability + rotation).
+- 4 Edge Functions (`influencers`, `portal`, `influencer-submissions`, `influencer-performance`).
+- 5 RPCs (security definer): `create_entry_with_tasks` re-signed with `p_influencer_id`, `create_influencer_submission`, `update_influencer_submission_verification`, `rotate_influencer_token`, `get_influencer_reliability`.
+- All endpoints follow the common ApiResponse shape; snake → camel via `_shared/case.ts`; portal routes gated by `_shared/portal-auth.ts` (token + active-status + per-IP rate limit). Operational follow-up tracked in the frontend log.

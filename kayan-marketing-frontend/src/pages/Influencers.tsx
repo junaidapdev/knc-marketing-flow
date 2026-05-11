@@ -13,8 +13,12 @@ import {
   type InfluencerStatus,
 } from "../constants/influencer-status";
 import { InfluencerFormModal } from "../features/influencers/InfluencerFormModal";
-import { useInfluencers } from "../features/influencers/hooks/use-influencers";
-import type { Influencer } from "../types/influencer";
+import { useInfluencersWithReliability } from "../features/influencers/hooks/use-influencers";
+import type {
+  Influencer,
+  InfluencerReliability,
+  InfluencerWithReliability,
+} from "../types/influencer";
 
 const STATUS_FILTERS: ReadonlyArray<{
   key: "all" | InfluencerStatus;
@@ -84,12 +88,27 @@ function formatRate(rate: number | null): string {
   return `${rate.toLocaleString()} SAR`;
 }
 
+// Composite reliability indicator: min of the three rates, or null if
+// any rate is null OR the score isn't available yet. Drives both the
+// table column color and the high-reliability / needs-review filters.
+function compositeReliability(rel: InfluencerReliability | null): number | null {
+  if (!rel) return null;
+  if (rel.postRate === null || rel.tagRate === null || rel.onTimeRate === null) {
+    return null;
+  }
+  return Math.min(rel.postRate, rel.tagRate, rel.onTimeRate);
+}
+
+type ReliabilityFilter = "all" | "high" | "needs-review";
+
 export default function InfluencersPage(): JSX.Element {
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const [status, setStatus] = useState<"all" | InfluencerStatus>("all");
   const [query, setQuery] = useState("");
   const [niche, setNiche] = useState<"all" | InfluencerNicheTag>("all");
+  const [reliabilityFilter, setReliabilityFilter] =
+    useState<ReliabilityFilter>("all");
 
   const filters = useMemo(
     () => ({
@@ -99,7 +118,36 @@ export default function InfluencersPage(): JSX.Element {
     }),
     [status, query, niche],
   );
-  const influencers = useInfluencers(filters);
+  const influencers = useInfluencersWithReliability(filters);
+
+  // Reliability is filtered client-side because it lives in a derived
+  // JSONB attached to each row, not as a direct DB column. With ≤200
+  // influencers this is fast; if the database grows, add a SQL view.
+  const filteredRows = useMemo<InfluencerWithReliability[]>(() => {
+    const rows = influencers.data ?? [];
+    if (reliabilityFilter === "all") return rows;
+    return rows.filter((row) => {
+      const rel = row.reliability;
+      const composite = compositeReliability(rel);
+      if (reliabilityFilter === "high") {
+        // All three rates ≥ 80
+        return (
+          rel !== null &&
+          rel.postRate !== null && rel.postRate >= 80 &&
+          rel.tagRate !== null && rel.tagRate >= 80 &&
+          rel.onTimeRate !== null && rel.onTimeRate >= 80
+        );
+      }
+      // needs-review: any rate < 50, OR no reliability score available yet
+      // (no eligible collabs / no submissions).
+      if (composite === null) return true;
+      return (
+        (rel?.postRate !== null && (rel?.postRate ?? 100) < 50) ||
+        (rel?.tagRate !== null && (rel?.tagRate ?? 100) < 50) ||
+        (rel?.onTimeRate !== null && (rel?.onTimeRate ?? 100) < 50)
+      );
+    });
+  }, [influencers.data, reliabilityFilter]);
 
   return (
     <div className="px-4 md:px-9 pt-5 md:pt-8 pb-12">
@@ -176,6 +224,33 @@ export default function InfluencersPage(): JSX.Element {
             </select>
           </label>
         </div>
+        {/* Reliability quick-filter — chip row below the search bar.
+            All-three-rates-≥80 is the high bar; any-rate-<50 OR no
+            score yet is the needs-review bucket. */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="eyebrow mr-1">Reliability:</span>
+          {(
+            [
+              { key: "all", label: "All" },
+              { key: "high", label: "High reliability" },
+              { key: "needs-review", label: "Needs review" },
+            ] as const
+          ).map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => setReliabilityFilter(c.key)}
+              className={`chip ${
+                reliabilityFilter === c.key
+                  ? "bg-obsidian text-yellow"
+                  : "chip-default hover:brightness-95"
+              }`}
+              aria-pressed={reliabilityFilter === c.key}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
       </section>
 
       {influencers.isError && (
@@ -188,16 +263,20 @@ export default function InfluencersPage(): JSX.Element {
       {influencers.isLoading && (
         <p className="text-ink-3 text-[13px] py-4">Loading...</p>
       )}
-      {influencers.data && influencers.data.length === 0 && (
+      {influencers.data && filteredRows.length === 0 && (
         <div className="card text-center py-12">
           <p className="text-ink-3 text-[13.5px]">
-            No influencers found. Add the first creator profile to start the
-            database.
+            {reliabilityFilter === "high" &&
+              "No high-reliability influencers yet. After a creator runs 3+ collabs with strong post / tag / on-time rates, they'll appear here."}
+            {reliabilityFilter === "needs-review" &&
+              "Nothing to review — every active creator either has solid scores or hasn't started collaborating yet. 🎉"}
+            {reliabilityFilter === "all" &&
+              "No influencers match these filters. Try clearing them, or add a new creator."}
           </p>
         </div>
       )}
 
-      {influencers.data && influencers.data.length > 0 && (
+      {influencers.data && filteredRows.length > 0 && (
         <>
           <div className="hidden lg:block card p-0 overflow-hidden">
             <table className="w-full text-[13px]">
@@ -208,12 +287,13 @@ export default function InfluencersPage(): JSX.Element {
                   <th className="px-4 py-3 eyebrow">Platforms</th>
                   <th className="px-4 py-3 eyebrow">Tier</th>
                   <th className="px-4 py-3 eyebrow">Status</th>
+                  <th className="px-4 py-3 eyebrow">Reliability</th>
                   <th className="px-4 py-3 eyebrow">Niches</th>
                   <th className="px-4 py-3 eyebrow text-right">Rate</th>
                 </tr>
               </thead>
               <tbody>
-                {influencers.data.map((influencer) => (
+                {filteredRows.map((influencer) => (
                   <tr
                     key={influencer.id}
                     onClick={() =>
@@ -251,6 +331,9 @@ export default function InfluencersPage(): JSX.Element {
                       </span>
                     </td>
                     <td className="px-4 py-3">
+                      <ReliabilityCell reliability={influencer.reliability} />
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         {influencer.nicheTags.slice(0, 3).map((tag) => (
                           <span key={tag} className="chip chip-default">
@@ -274,7 +357,7 @@ export default function InfluencersPage(): JSX.Element {
           </div>
 
           <div className="lg:hidden flex flex-col gap-3">
-            {influencers.data.map((influencer) => (
+            {filteredRows.map((influencer) => (
               <button
                 key={influencer.id}
                 onClick={() =>
@@ -324,5 +407,41 @@ export default function InfluencersPage(): JSX.Element {
         editing={null}
       />
     </div>
+  );
+}
+
+// Small composite reliability indicator for the list — shows the worst
+// of the three rates so the list highlights the weakest link. Color-
+// coded: ≥80 sage, ≥50 yellow, else rose. Renders "—" when the score
+// isn't computable yet (no eligible collabs / submissions).
+function ReliabilityCell({
+  reliability,
+}: {
+  reliability: InfluencerReliability | null;
+}): JSX.Element {
+  const composite = compositeReliability(reliability);
+  if (composite === null) {
+    return (
+      <span className="text-[11.5px] text-ink-3 italic" title="Reliability requires 3+ collabs with submissions">
+        —
+      </span>
+    );
+  }
+  const chipClass =
+    composite >= 80
+      ? "bg-sage text-[#2C5530]"
+      : composite >= 50
+        ? "bg-yellow text-obsidian"
+        : "bg-rose text-[#6E2A35]";
+  const title = reliability
+    ? `Post ${reliability.postRate ?? "—"}% · Tag ${reliability.tagRate ?? "—"}% · On-time ${reliability.onTimeRate ?? "—"}%`
+    : "";
+  return (
+    <span
+      className={`chip ${chipClass} font-semibold !text-[11px] tabular-nums`}
+      title={title}
+    >
+      {composite}%
+    </span>
   );
 }

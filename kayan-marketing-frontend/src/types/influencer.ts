@@ -2,6 +2,24 @@ import type { InfluencerStatus } from "../constants/influencer-status";
 import type { InfluencerNicheTag } from "../constants/influencer-niche-tags";
 import type { InfluencerLanguage } from "../constants/influencer-languages";
 
+// Returned by the backend `get_influencer_reliability` RPC. Percentages
+// are integers 0..100 OR null when the denominator is zero. The admin
+// list / detail endpoints attach this as `reliability` when requested.
+export interface InfluencerReliability {
+  postRate: number | null;
+  tagRate: number | null;
+  onTimeRate: number | null;
+  totalCollabs: number;
+  totalSubmissions: number;
+  computedAt: string;
+}
+
+// Detail response = the row + reliability merged in. List response is
+// the row alone unless `?includeReliability=true` was passed.
+export interface InfluencerWithReliability extends Influencer {
+  reliability: InfluencerReliability | null;
+}
+
 export interface Influencer {
   id: string;
   brandId: string;

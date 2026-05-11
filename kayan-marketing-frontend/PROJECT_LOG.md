@@ -107,3 +107,25 @@ ever want to revive the implementation.
 - `InfluencerDetail` Activity placeholder replaced with `ActivityPanel` — performance summary tiles (Collabs / Submissions / Verified / Views / Likes / Comments / Shares aggregated from joined `performanceLogs`) plus a Collaborations list linking to each entry. Status chip per row uses Pending / Verified / Disputed / Awaiting depending on whether the entry has a submission.
 - `Influencers` page header gets a secondary "Verifications" CTA (ShieldCheck icon) linking to the new page. Sidebar nav stays untouched — verifications is a sub-flow of the Influencers section.
 - Routes: `INFLUENCER_VERIFICATIONS = "/influencers/verifications"` registered in `App.tsx` BEFORE the parameterized `/influencers/:id` so it doesn't get captured.
+
+## Influencer Management Chunk 4: Reliability Score + Portal Management (DONE)
+- New types `InfluencerReliability` + `InfluencerWithReliability` + portal `PortalReliabilityView` (discriminated by `available`).
+- Hooks: `useInfluencersWithReliability`, `useRotateInfluencerToken`, `useUpdateInfluencerStatus`. `useInfluencer` now returns `InfluencerWithReliability` (reliability is merged server-side on detail).
+- **Influencer Detail page**:
+  • New top-of-section `Reliability` panel — three color-coded stat cards (Post / Tag / On-time, ≥80 sage / ≥50 yellow / <50 rose), gated by ≥3 collabs with a clear "X collabs so far" placeholder when below the threshold.
+  • Replaced the old "Portal access" block with `Portal management` — prominent status badge, current portal URL with copy + open-in-new-tab, four actions (Rotate / Pause / Reactivate / Blacklist), two confirmation modals.
+  • `RotateConfirmModal` is a two-step flow: pre-rotation warning → post-rotation "new link ready" view with copy buttons for both the URL and the WhatsApp welcome template (mirrors the create-influencer modal's surface).
+  • `BlacklistConfirmModal` carries a red-banner warning and a reversible-but-portal-killing explanation.
+- **Influencers list page**: new `Reliability` column showing the **composite** (min of the three rates) with the same chip palette. Quick-filter chip row: All / High reliability (all three rates ≥ 80) / Needs review (any rate < 50 OR not enough collabs yet). Filtering is client-side (≤200 row scale) — the hook now passes `?includeReliability=true`. Empty states distinguish between "no high-reliability yet" and the celebratory "nothing to review" case.
+- **Creator portal**: new `PortalReliabilitySection` between profile and active collabs — same three cards when available, friendly "you're N away" message when fewer than 3 collabs. Includes "Keep your scores high to be invited to more campaigns" tagline.
+- All standards observed: no `any`, no `console.*`, no inline magic numbers (constants for the gating threshold + chip thresholds), Zod stays on the form layer, React Query handles invalidation after rotation/status flips.
+
+## V1 Influencer Management COMPLETE
+**Pages**: `Influencers` (admin list + reliability filters), `InfluencerDetail` (full admin profile, activity, portal management), `PendingVerifications` (queue + verify/dispute/log-perf flow), `CreatorPortal` (public, mobile-first).
+
+**Backend**: 9 migrations (0046 → reliability/rotation), 4 Edge Functions (`influencers`, `portal`, `influencer-submissions`, `influencer-performance`), 3 security-definer RPCs (`create_entry_with_tasks` re-signed with `p_influencer_id`, `create_influencer_submission`, `update_influencer_submission_verification`, `rotate_influencer_token`, `get_influencer_reliability`).
+
+**Known follow-ups** (out of V1, captured in earlier logs):
+- Replace in-memory portal rate-limiter with a durable / shared limiter before production traffic.
+- Build `influencer_token_rotations` audit table to persist who rotated which token when (the RPC already accepts `p_user_id` for this; just unwired today).
+- Wire the `PerformanceLogModal` into the existing task detail UI (currently launched from the Verifications row only).
