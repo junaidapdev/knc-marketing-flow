@@ -20,10 +20,7 @@ import type {
   PortalCollaboration,
   PortalSubmissionView,
 } from "../types/influencer-submission";
-import type {
-  PortalPlatformView,
-  PortalReliabilityView,
-} from "../types/portal";
+import type { PortalPlatformView } from "../types/portal";
 
 // Compact form for follower counts inside the platform tiles — "482K"
 // reads cleaner than "482,000" at the size we're using. Falls back to
@@ -129,8 +126,6 @@ export default function CreatorPortalPage(): JSX.Element {
                 </div>
               </section>
             )}
-
-            <PortalReliabilitySection reliability={profile.data.reliability} />
 
             <PortalTagsCard
               nicheTags={profile.data.nicheTags}
@@ -403,103 +398,6 @@ function YesNoToggle({
           No
         </button>
       </div>
-    </div>
-  );
-}
-
-const PORTAL_RELIABILITY_MIN_COLLABS = 3;
-
-// Reliability section on the creator-facing portal. Gated by ≥3
-// eligible collabs — fewer than that and we show a quiet "X more to
-// go" message instead of a score that would yo-yo with each submission.
-function PortalReliabilitySection({
-  reliability,
-}: {
-  reliability: PortalReliabilityView;
-}): JSX.Element {
-  if (!reliability.available) {
-    const remaining = Math.max(
-      PORTAL_RELIABILITY_MIN_COLLABS - reliability.totalCollabs,
-      1,
-    );
-    return (
-      <section className="card">
-        <h2 className="h-card mb-2">Your reliability</h2>
-        <p className="text-[13px] text-ink-3 leading-relaxed">
-          Your reliability score appears after{" "}
-          {PORTAL_RELIABILITY_MIN_COLLABS} completed collaborations. You're{" "}
-          {remaining} away.
-        </p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="card">
-      <h2 className="h-card mb-4">Your reliability</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <PortalReliabilityCard
-          label="Post rate"
-          value={reliability.postRate}
-          description="How often you post when we agree"
-        />
-        <PortalReliabilityCard
-          label="Tag rate"
-          value={reliability.tagRate}
-          description="How often you tag Kayan in your posts"
-        />
-        <PortalReliabilityCard
-          label="On-time rate"
-          value={reliability.onTimeRate}
-          description="How often you submit within 24 hours of the agreed post date"
-        />
-      </div>
-      <p className="text-[12px] text-ink-3 italic mt-4">
-        Keep your scores high to be invited to more campaigns.
-      </p>
-    </section>
-  );
-}
-
-// Subtle background tint per rate band — matches the chip palette in
-// the rest of the app (sage / yellow-bg / rose). Lets the number itself
-// carry the visual weight without yelling.
-function portalRateTintClass(value: number | null): string {
-  if (value === null) return "bg-cream-2 border-line";
-  if (value >= 80) return "bg-sage/30 border-sage-deep/30";
-  if (value >= 50) return "bg-yellow-bg border-yellow/60";
-  return "bg-rose/30 border-rose-deep/30";
-}
-
-function portalRateNumberColor(value: number | null): string {
-  if (value === null) return "text-ink-3";
-  if (value >= 80) return "text-[#2C5530]";
-  if (value >= 50) return "text-obsidian";
-  return "text-[#6E2A35]";
-}
-
-function PortalReliabilityCard({
-  label,
-  value,
-  description,
-}: {
-  label: string;
-  value: number | null;
-  description: string;
-}): JSX.Element {
-  return (
-    <div
-      className={`rounded-xl border p-4 text-center ${portalRateTintClass(value)}`}
-    >
-      <div
-        className={`font-serif text-[34px] sm:text-[40px] font-semibold leading-none tabular-nums ${portalRateNumberColor(value)}`}
-      >
-        {value === null ? "—" : `${value}%`}
-      </div>
-      <div className="eyebrow mt-2.5">{label}</div>
-      <p className="text-[11px] text-ink-3 leading-snug mt-1.5">
-        {description}
-      </p>
     </div>
   );
 }
