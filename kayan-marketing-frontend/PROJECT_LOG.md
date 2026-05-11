@@ -129,3 +129,20 @@ ever want to revive the implementation.
 - Replace in-memory portal rate-limiter with a durable / shared limiter before production traffic.
 - Build `influencer_token_rotations` audit table to persist who rotated which token when (the RPC already accepts `p_user_id` for this; just unwired today).
 - Wire the `PerformanceLogModal` into the existing task detail UI (currently launched from the Verifications row only).
+
+## Reports Module Chunk 2: Frontend Preview (DONE)
+- Added protected `/reports` route and sidebar navigation item between Performance and Budget.
+- Added frontend `ReportSummary` / `ReportComparison` type mirror plus lazy `useReportSummary` hook against `GET /reports/summary` with 60s stale time.
+- Added report constants, preset date-range utilities, and `DateRangePicker` with This Month, Last Month, Last 7/30/90 days, This Quarter, Last Quarter, and Custom presets. Client validation enforces end date after start date and max 365 days.
+- Added `Reports.tsx`: date-range form, optional custom report title, compare-to-previous checkbox, generate/refresh behavior, empty state, loading skeleton, and retryable error state.
+- Added pure presentation `ReportCard` component for Chunk 3 image export reuse. It renders content totals, activity/campaign stats, influencer submission status, performance coverage/totals, comparison deltas, below-threshold messaging, and the unsubmitted-collabs warning.
+
+## Reports Module Chunk 3: Image Download + Polish (DONE)
+- Installed `html-to-image` for client-side PNG export. Chosen over `html2canvas` because it produces sharper output on text-heavy reports and has better support for modern CSS (flexbox, grid, custom properties), while staying smaller than `dom-to-image`.
+- `ReportCard` now forwards a ref to its fixed-width 800px white-background capture surface so the rendered card can be exported consistently.
+- Added report export utilities: PNG generation with retina pixel ratio 2, clean filename builder (`kayan-marketing-report-{slug}-{from}-to-{to}.png`), WhatsApp-friendly plain-text summary builder, and clipboard copy with a legacy fallback for browsers that block `navigator.clipboard`.
+- `Reports.tsx` now scrolls the preview into view after Generate, shows a preview-ready subtitle, and exposes `Copy as Text` plus `Download Report` actions with loading, success, and error states.
+- Verification: lint/build pass. Chrome/in-app-browser smoke tested with a local mock reports endpoint for comparison reports, zero-entry reports, two successive report generations, copy-as-text, and PNG generation flow. Downloads are blocked by the Codex in-app browser itself, but the app completed generation and surfaced the success state.
+
+## Reports Module COMPLETE
+**Follow-up:** run the same PNG download smoke test on the deployed app in Safari iOS and Chrome Android after the `/reports/summary` Edge Function is deployed to the production Supabase project, because the local simulator service and in-app browser download manager were not available in this workspace.

@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Calendar,
   ClipboardList,
+  FileText,
   Megaphone,
   BarChart3,
   Wallet,
@@ -37,6 +38,7 @@ const PRIMARY_NAV: ReadonlyArray<NavEntry> = [
   { to: ROUTES.CAMPAIGNS, label: "Campaigns", icon: Megaphone },
   { to: ROUTES.INFLUENCERS, label: "Influencers", icon: Users },
   { to: ROUTES.PERFORMANCE, label: "Performance", icon: BarChart3 },
+  { to: ROUTES.REPORTS, label: "Reports", icon: FileText },
   { to: ROUTES.BUDGET, label: "Budget", icon: Wallet },
 ];
 

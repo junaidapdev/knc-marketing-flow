@@ -12,3 +12,4 @@ export * from "./marketing-event";
 export * from "./influencer";
 export * from "./portal";
 export * from "./influencer-submission";
+export * from "./report-summary";

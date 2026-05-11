@@ -12,6 +12,7 @@ export const ROUTES = {
   INFLUENCER_VERIFICATIONS: "/influencers/verifications",
   CREATOR_PORTAL: (token: string) => `/creator/${token}`,
   PERFORMANCE: "/performance",
+  REPORTS: "/reports",
   BUDGET: "/budget",
   SETTINGS: "/settings",
 } as const;
