@@ -1,12 +1,5 @@
 import { useState } from "react";
-import {
-  AtSign,
-  ExternalLink,
-  MapPin,
-  MessageCircle,
-  Moon,
-  Sun,
-} from "lucide-react";
+import { MapPin, MessageCircle, Moon, Sun } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { CREATOR_PORTAL_COPY } from "../constants/portal";
 import { useThemeStore } from "../stores/theme-store";
@@ -32,9 +25,29 @@ import type {
   PortalReliabilityView,
 } from "../types/portal";
 
-function formatCount(value: number | null): string {
-  if (value === null) return CREATOR_PORTAL_COPY.notSet;
+// Compact form for follower counts inside the platform tiles — "482K"
+// reads cleaner than "482,000" at the size we're using. Falls back to
+// localized integers below 1k.
+function formatCompactCount(value: number | null): string {
+  if (value === null) return "—";
+  if (value >= 1_000_000) {
+    const m = value / 1_000_000;
+    return `${m >= 10 ? Math.round(m) : m.toFixed(1)}M`;
+  }
+  if (value >= 1_000) {
+    const k = value / 1_000;
+    return `${k >= 10 ? Math.round(k) : k.toFixed(1)}K`;
+  }
   return value.toLocaleString();
+}
+
+// First grapheme of the display name, uppercased, used inside the
+// avatar circle. Falls back to "K" if the name is empty / starts with
+// whitespace.
+function avatarInitial(displayName: string): string {
+  const trimmed = displayName.trim();
+  if (!trimmed) return "K";
+  return trimmed.charAt(0).toUpperCase();
 }
 
 function formatNiche(value: string): string {
@@ -98,65 +111,31 @@ export default function CreatorPortalPage(): JSX.Element {
 
         {profile.data && (
           <div className="space-y-4">
-            <section className="rounded-lg bg-paper border border-line shadow-sm p-5 sm:p-6">
-              <p className="eyebrow mb-2">{CREATOR_PORTAL_COPY.brandSubline}</p>
-              <h1 className="font-serif text-[30px] sm:text-[38px] leading-tight tracking-tight">
-                {CREATOR_PORTAL_COPY.welcome}, {profile.data.displayName}
-              </h1>
-              <p className="text-[13.5px] text-ink-2 mt-3 leading-relaxed">
-                {CREATOR_PORTAL_COPY.contactLine}
-              </p>
-            </section>
+            <PortalHero
+              displayName={profile.data.displayName}
+              city={profile.data.city}
+              platforms={profile.data.platforms}
+            />
 
-            <section className="card">
-              <h2 className="h-card mb-4">
-                {CREATOR_PORTAL_COPY.profileTitle}
-              </h2>
-              <div className="space-y-5">
-                <div>
-                  <div className="eyebrow mb-2">
-                    {CREATOR_PORTAL_COPY.cityLabel}
-                  </div>
-                  <div className="flex items-center gap-2 text-[14px] text-ink">
-                    <MapPin size={15} className="text-ink-3" />
-                    <span>
-                      {profile.data.city ?? CREATOR_PORTAL_COPY.notSet}
-                    </span>
-                  </div>
+            {profile.data.platforms.length > 0 && (
+              <section>
+                <div className="grid grid-cols-3 gap-2.5">
+                  {profile.data.platforms.map((platform) => (
+                    <PortalPlatformTile
+                      key={platform.key}
+                      platform={platform}
+                    />
+                  ))}
                 </div>
-
-                <div>
-                  <div className="eyebrow mb-2">
-                    {CREATOR_PORTAL_COPY.platformsTitle}
-                  </div>
-                  {profile.data.platforms.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-3">
-                      {profile.data.platforms.map((platform) => (
-                        <PlatformRow key={platform.key} platform={platform} />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-[13px] text-ink-3">
-                      {CREATOR_PORTAL_COPY.noPlatforms}
-                    </p>
-                  )}
-                </div>
-
-                <ChipGroup
-                  title={CREATOR_PORTAL_COPY.nicheTagsTitle}
-                  values={profile.data.nicheTags.map(formatNiche)}
-                  empty={CREATOR_PORTAL_COPY.noTags}
-                />
-
-                <ChipGroup
-                  title={CREATOR_PORTAL_COPY.languagesTitle}
-                  values={profile.data.languages.map(formatLanguage)}
-                  empty={CREATOR_PORTAL_COPY.noLanguages}
-                />
-              </div>
-            </section>
+              </section>
+            )}
 
             <PortalReliabilitySection reliability={profile.data.reliability} />
+
+            <PortalTagsCard
+              nicheTags={profile.data.nicheTags}
+              languages={profile.data.languages}
+            />
 
             <ActiveCollaborations
               token={token ?? null}
@@ -428,86 +407,6 @@ function YesNoToggle({
   );
 }
 
-function PlatformRow({
-  platform,
-}: {
-  platform: PortalPlatformView;
-}): JSX.Element {
-  const content = (
-    <>
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="w-10 h-10 rounded-full bg-cream-2 grid place-items-center text-ink-2 flex-shrink-0">
-          <AtSign size={17} />
-        </div>
-        <div className="min-w-0">
-          <div className="font-semibold text-[14px] text-ink">
-            {platform.label}
-          </div>
-          <div className="text-[12.5px] text-ink-2 truncate">
-            {platform.handle}
-          </div>
-        </div>
-      </div>
-      <div className="text-right flex-shrink-0">
-        <div className="text-[13px] font-semibold text-ink">
-          {formatCount(platform.followers)}
-        </div>
-        <div className="text-[11px] text-ink-3">
-          {CREATOR_PORTAL_COPY.followersLabel}
-        </div>
-      </div>
-    </>
-  );
-
-  if (!platform.url) {
-    return (
-      <div className="rounded-md border border-line p-3 flex items-center justify-between gap-3">
-        {content}
-      </div>
-    );
-  }
-
-  return (
-    <a
-      href={platform.url}
-      target="_blank"
-      rel="noreferrer"
-      className="rounded-md border border-line p-3 flex items-center justify-between gap-3 hover:bg-cream-2/30 transition min-h-[68px]"
-      aria-label={`${CREATOR_PORTAL_COPY.openProfile} ${platform.label}`}
-    >
-      {content}
-      <ExternalLink size={14} className="text-ink-3 flex-shrink-0" />
-    </a>
-  );
-}
-
-function ChipGroup({
-  title,
-  values,
-  empty,
-}: {
-  title: string;
-  values: string[];
-  empty: string;
-}): JSX.Element {
-  return (
-    <div>
-      <div className="eyebrow mb-2">{title}</div>
-      {values.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {values.map((value) => (
-            <span key={value} className="chip chip-default">
-              {value}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <p className="text-[13px] text-ink-3">{empty}</p>
-      )}
-    </div>
-  );
-}
-
 const PORTAL_RELIABILITY_MIN_COLLABS = 3;
 
 // Reliability section on the creator-facing portal. Gated by ≥3
@@ -562,11 +461,21 @@ function PortalReliabilitySection({
   );
 }
 
-function portalRateChipClass(value: number | null): string {
-  if (value === null) return "bg-cream-2 text-ink-3";
-  if (value >= 80) return "bg-sage text-[#2C5530]";
-  if (value >= 50) return "bg-yellow text-obsidian";
-  return "bg-rose text-[#6E2A35]";
+// Subtle background tint per rate band — matches the chip palette in
+// the rest of the app (sage / yellow-bg / rose). Lets the number itself
+// carry the visual weight without yelling.
+function portalRateTintClass(value: number | null): string {
+  if (value === null) return "bg-cream-2 border-line";
+  if (value >= 80) return "bg-sage/30 border-sage-deep/30";
+  if (value >= 50) return "bg-yellow-bg border-yellow/60";
+  return "bg-rose/30 border-rose-deep/30";
+}
+
+function portalRateNumberColor(value: number | null): string {
+  if (value === null) return "text-ink-3";
+  if (value >= 80) return "text-[#2C5530]";
+  if (value >= 50) return "text-obsidian";
+  return "text-[#6E2A35]";
 }
 
 function PortalReliabilityCard({
@@ -579,16 +488,18 @@ function PortalReliabilityCard({
   description: string;
 }): JSX.Element {
   return (
-    <div className="rounded-md border border-line p-3 bg-paper">
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className="eyebrow">{label}</span>
-        <span
-          className={`chip ${portalRateChipClass(value)} font-semibold !text-[11px]`}
-        >
-          {value === null ? "—" : `${value}%`}
-        </span>
+    <div
+      className={`rounded-xl border p-4 text-center ${portalRateTintClass(value)}`}
+    >
+      <div
+        className={`font-serif text-[34px] sm:text-[40px] font-semibold leading-none tabular-nums ${portalRateNumberColor(value)}`}
+      >
+        {value === null ? "—" : `${value}%`}
       </div>
-      <p className="text-[11.5px] text-ink-3 leading-snug">{description}</p>
+      <div className="eyebrow mt-2.5">{label}</div>
+      <p className="text-[11px] text-ink-3 leading-snug mt-1.5">
+        {description}
+      </p>
     </div>
   );
 }
@@ -615,5 +526,171 @@ function PortalThemeToggle(): JSX.Element {
     >
       {isDark ? <Sun size={16} /> : <Moon size={16} />}
     </button>
+  );
+}
+
+// ─── Polished portal sections ────────────────────────────────────────────
+
+// Hero card: big avatar + name + city + reach summary. Designed to be
+// the one moment that says "this is YOUR profile" — like an Instagram
+// profile header but in Kayan's serif/cream voice.
+function PortalHero({
+  displayName,
+  city,
+  platforms,
+}: {
+  displayName: string;
+  city: string | null;
+  platforms: PortalPlatformView[];
+}): JSX.Element {
+  const initial = avatarInitial(displayName);
+
+  // Sum of follower counts across all platforms with a number. If none
+  // have a count, we hide the reach line entirely — better to omit than
+  // surface "0 across 0 platforms".
+  const reachTotal = platforms.reduce(
+    (sum, p) => sum + (p.followers ?? 0),
+    0,
+  );
+  const platformsWithCount = platforms.filter((p) => p.followers !== null);
+  const showReach = platformsWithCount.length > 0 && reachTotal > 0;
+
+  return (
+    <section className="relative overflow-hidden rounded-2xl bg-paper border border-line shadow-sm">
+      {/* Soft cream-to-paper backdrop strip behind the avatar — gives
+          the hero a touch of depth without going full-gradient. */}
+      <div className="absolute inset-x-0 top-0 h-24 bg-cream-2" aria-hidden />
+
+      <div className="relative px-5 sm:px-7 pt-7 pb-6 text-center">
+        <div className="inline-grid place-items-center w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-yellow text-obsidian shadow-md ring-4 ring-paper">
+          <span className="font-serif text-[44px] sm:text-[52px] font-semibold leading-none">
+            {initial}
+          </span>
+        </div>
+
+        <h1 className="font-serif text-[28px] sm:text-[34px] leading-tight tracking-tight text-ink mt-4">
+          {displayName}
+        </h1>
+
+        <div className="flex items-center justify-center gap-3 flex-wrap mt-2 text-[13px] text-ink-2">
+          {city && (
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin size={13} className="text-ink-3" />
+              {city}
+            </span>
+          )}
+          {showReach && (
+            <>
+              {city && <span className="text-ink-3">·</span>}
+              <span>
+                <span className="font-semibold text-ink tabular-nums">
+                  {formatCompactCount(reachTotal)}
+                </span>{" "}
+                across {platformsWithCount.length} platform
+                {platformsWithCount.length === 1 ? "" : "s"}
+              </span>
+            </>
+          )}
+        </div>
+
+        <p className="text-[12.5px] text-ink-3 leading-relaxed max-w-md mx-auto mt-4">
+          {CREATOR_PORTAL_COPY.contactLine}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+// One platform = one tile in a 3-col grid. Inspired by the stats row
+// on Instagram profiles. Whole tile is clickable when there's a URL,
+// otherwise it renders as a static card.
+function PortalPlatformTile({
+  platform,
+}: {
+  platform: PortalPlatformView;
+}): JSX.Element {
+  const hasUrl = Boolean(platform.url);
+  const inner = (
+    <>
+      <div className="font-serif text-[22px] sm:text-[26px] font-semibold text-ink leading-none tabular-nums">
+        {formatCompactCount(platform.followers)}
+      </div>
+      <div className="eyebrow mt-2">{platform.label}</div>
+      <div
+        className="text-[11.5px] text-ink-3 mt-1 truncate"
+        title={`@${platform.handle}`}
+      >
+        @{platform.handle}
+      </div>
+    </>
+  );
+
+  if (hasUrl && platform.url) {
+    return (
+      <a
+        href={platform.url}
+        target="_blank"
+        rel="noreferrer"
+        className="block rounded-xl bg-paper border border-line p-3.5 text-center transition hover:border-line-2 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow"
+        title={`Open ${platform.label}`}
+      >
+        {inner}
+      </a>
+    );
+  }
+  return (
+    <div className="rounded-xl bg-paper border border-line p-3.5 text-center">
+      {inner}
+    </div>
+  );
+}
+
+// Niche tags + languages combined into one card so the eye doesn't
+// have to traverse two separate sections for what amounts to identity
+// metadata.
+function PortalTagsCard({
+  nicheTags,
+  languages,
+}: {
+  nicheTags: string[];
+  languages: string[];
+}): JSX.Element {
+  const hasNiches = nicheTags.length > 0;
+  const hasLanguages = languages.length > 0;
+  if (!hasNiches && !hasLanguages) return <></>;
+
+  return (
+    <section className="card">
+      <div className="space-y-4">
+        {hasNiches && (
+          <div>
+            <div className="eyebrow mb-2">
+              {CREATOR_PORTAL_COPY.nicheTagsTitle}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {nicheTags.map(formatNiche).map((tag) => (
+                <span key={tag} className="chip chip-default">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {hasLanguages && (
+          <div>
+            <div className="eyebrow mb-2">
+              {CREATOR_PORTAL_COPY.languagesTitle}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {languages.map(formatLanguage).map((lang) => (
+                <span key={lang} className="chip chip-default">
+                  {lang}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
