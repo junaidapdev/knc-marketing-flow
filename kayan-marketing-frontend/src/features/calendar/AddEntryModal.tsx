@@ -23,6 +23,7 @@ import {
 } from "../../constants/budget-categories";
 import { useCreateEntry } from "./hooks/use-calendar-entries";
 import { BranchSelector } from "../branches/BranchSelector";
+import { InfluencerSelector } from "../influencers/InfluencerSelector";
 import { PATTERNS, type PatternId } from "../../constants/patterns";
 import { logger } from "../../utils/logger";
 
@@ -50,6 +51,7 @@ const formSchema = z
     notes: z.string().max(5000).optional(),
     autoCreateTasks: z.boolean(),
     branchId: z.string().optional(),
+    influencerId: z.string().optional(),
     productionMode: z.enum(PRODUCTION_MODES),
     shootDate: z.string().optional(),
     editorDaysOffset: z.coerce.number().int().min(0).max(30),
@@ -64,6 +66,13 @@ const formSchema = z
         code: z.ZodIssueCode.custom,
         path: ["branchId"],
         message: "Please select a branch for shop activity entries.",
+      });
+    }
+    if (data.type === ENTRY_TYPES.INFLUENCER_COLLAB && !data.influencerId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["influencerId"],
+        message: "Please select an influencer for collaboration entries.",
       });
     }
     // Batch-mode video entries must have a shoot day. Without it the script
@@ -101,6 +110,7 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
   const editorOffsetDefault = brand.data?.defaultEditorOffset ?? 2;
   const schedulingBuffer = brand.data?.defaultSchedulingBuffer ?? 3;
   const branchSelectorRef = useRef<HTMLSelectElement | null>(null);
+  const influencerSelectorRef = useRef<HTMLSelectElement | null>(null);
 
   const {
     register,
@@ -123,6 +133,7 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
       notes: "",
       autoCreateTasks: true,
       branchId: "",
+      influencerId: "",
       productionMode: "batch",
       shootDate: "",
       editorDaysOffset: 2,
@@ -148,6 +159,7 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
         notes: "",
         autoCreateTasks: true,
         branchId: "",
+        influencerId: "",
         productionMode: "batch",
         shootDate: "",
         editorDaysOffset: 2,
@@ -166,6 +178,7 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
   const watchedShootDate = watch("shootDate");
   const watchedEditorOffset = watch("editorDaysOffset");
   const isShopActivity = watchedType === ENTRY_TYPES.SHOP_ACTIVITY;
+  const isInfluencerCollab = watchedType === ENTRY_TYPES.INFLUENCER_COLLAB;
   const isBatchable = BATCHABLE_TYPES.has(watchedType);
   const useBatchChain = isBatchable && watchedMode === "batch";
 
@@ -184,6 +197,15 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
     const id = window.setTimeout(() => branchSelectorRef.current?.focus(), 50);
     return () => window.clearTimeout(id);
   }, [isShopActivity, setValue]);
+
+  useEffect(() => {
+    if (!isInfluencerCollab) {
+      setValue("influencerId", "");
+      return undefined;
+    }
+    const id = window.setTimeout(() => influencerSelectorRef.current?.focus(), 50);
+    return () => window.clearTimeout(id);
+  }, [isInfluencerCollab, setValue]);
 
   const basePreview: PreviewTask[] = useMemo(() => {
     if (!watchedAuto || !DATE_REGEX.test(watchedDate)) return [];
@@ -259,6 +281,7 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
         notes: input.notes?.trim() ? input.notes : null,
         autoCreateTasks: input.autoCreateTasks,
         branchId: input.branchId ? input.branchId : null,
+        influencerId: input.influencerId ? input.influencerId : null,
         // Send the resolved chain only if the user changed any assignee;
         // otherwise let the backend reapply the default recipe.
         taskChainOverride:
@@ -356,6 +379,31 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
               />
               {errors.branchId && (
                 <p className="text-rose-deep text-[12px] mt-1.5">{errors.branchId.message}</p>
+              )}
+            </div>
+          )}
+
+          {isInfluencerCollab && (
+            <div>
+              <label className="field-label">Influencer</label>
+              <Controller
+                name="influencerId"
+                control={control}
+                render={({ field }) => (
+                  <InfluencerSelector
+                    ref={influencerSelectorRef}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    required
+                    ariaLabel="Influencer"
+                  />
+                )}
+              />
+              {errors.influencerId && (
+                <p className="text-rose-deep text-[12px] mt-1.5">
+                  {errors.influencerId.message}
+                </p>
               )}
             </div>
           )}

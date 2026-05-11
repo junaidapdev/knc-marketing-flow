@@ -23,6 +23,7 @@ export interface CalendarEntry {
   brandId: string;
   campaignId: string | null;
   branchId: string | null;
+  influencerId: string | null;
   type: EntryType;
   title: string;
   description: string | null;

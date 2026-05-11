@@ -86,3 +86,24 @@ EstimateCostModal, SearchCostFooter, EstimatedBadge, CardSkeleton,
 ResultsErrorBoundary, InfluencersTabs, SavedCreators page, etc.) and
 the supporting hooks/types/constants are gone. See git history if you
 ever want to revive the implementation.
+
+## Influencer Management Chunk 1: Internal Admin CRUD (DONE)
+- Added shared influencer constants, domain types, and React Query hooks for list/detail/create/update/delete against `/functions/v1/influencers`.
+- Added protected routes `/influencers` and `/influencers/:id`, with sidebar navigation between Campaigns and Performance.
+- `Influencers.tsx`: admin list with status tabs, search, niche filter, desktop table, mobile cards, platform chips, follower tier, status badge, tags, and rate.
+- `InfluencerDetail.tsx`: profile view grouped into Contact, Platforms, Commercials, Content fit, Notes, Portal access, and Activity placeholder for Chunk 3; includes edit and hard-delete flow.
+- `InfluencerFormModal`: RHF + Zod add/edit form with identity, platform, commercial, fit, notes, and status fields; create success exposes the future creator portal link and copyable WhatsApp welcome message.
+
+## Influencer Management Chunk 2: Creator Portal Read-Only (DONE)
+- Added public route `/creator/:token` outside `ProtectedRoute` and outside `AppShell`, so creator links do not redirect to login and do not show admin navigation.
+- Added portal API client using raw `fetch` against `/functions/v1/portal/:token` with no Supabase auth header, plus `usePortalProfile` React Query hook.
+- Added `CreatorPortal.tsx`: mobile-first public profile page with Kayan branding, welcome headline, city, platform rows, niche/language chips, submissions placeholder for Chunk 3, and opaque invalid/deactivated-link messaging.
+- Added `PortalInfluencerView` frontend type and portal copy constants.
+
+## Influencer Management Chunk 3: Post Submission + Verification Queue (DONE)
+- Submission infrastructure (Codex): types `InfluencerSubmission`, `InfluencerSubmissionListItem`, `InfluencerSubmissionDetail`, `InfluencerPerformanceLog`, `PortalSubmissionView`, `PortalCollaboration`; hooks `useInfluencerSubmissions`, `useInfluencerSubmission`, `useUpdateInfluencerSubmission`, `useInfluencerPerformanceLogs`, `useCreateInfluencerPerformanceLog`; portal hooks `usePortalCollaborations`, `useSubmitPortalPost`; `CreatorPortal.tsx` submission form (per-platform URL inputs gated by available handles, Tagged/Promo toggles, notes); `AddEntryModal` influencer dropdown gated by `type === 'influencer_collab'` with Zod superRefine; `InfluencerSelector` reusable searchable select.
+- New `PendingVerifications` page at `/influencers/verifications`: filter chips (Pending / Disputed / Verified / All), desktop table + mobile cards listing influencer, collab, submitted date, platform icons, Tagged + Promo badges, status. Three modals — View (full submission with clickable post URLs + dispute reason), Verify (confirm-only — backend creates the follow-up "Log performance" task), Dispute (reason ≥ 5 chars required). Verified rows expose a "Log perf" action that opens the performance modal.
+- New `PerformanceLogModal` (`features/influencers/PerformanceLogModal.tsx`): one input set per platform that actually has a post URL on the submission, suppresses platforms already logged. Save fires one POST per non-empty platform; success flash + auto-close.
+- `InfluencerDetail` Activity placeholder replaced with `ActivityPanel` — performance summary tiles (Collabs / Submissions / Verified / Views / Likes / Comments / Shares aggregated from joined `performanceLogs`) plus a Collaborations list linking to each entry. Status chip per row uses Pending / Verified / Disputed / Awaiting depending on whether the entry has a submission.
+- `Influencers` page header gets a secondary "Verifications" CTA (ShieldCheck icon) linking to the new page. Sidebar nav stays untouched — verifications is a sub-flow of the Influencers section.
+- Routes: `INFLUENCER_VERIFICATIONS = "/influencers/verifications"` registered in `App.tsx` BEFORE the parameterized `/influencers/:id` so it doesn't get captured.

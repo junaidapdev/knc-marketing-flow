@@ -77,6 +77,7 @@ const createSchema = z
     brandId: z.string().uuid(),
     campaignId: z.string().uuid().nullable().optional(),
     branchId: z.string().uuid().nullable().optional(),
+    influencerId: z.string().uuid().nullable().optional(),
     type: z.enum(ENTRY_TYPE_VALUES),
     title: z.string().min(3).max(200),
     description: z.string().max(2000).nullable().optional(),
@@ -112,6 +113,13 @@ const createSchema = z
         message: "Please select a branch for shop activity entries.",
       });
     }
+    if (data.type === "influencer_collab" && !data.influencerId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["influencerId"],
+        message: "Please select an influencer for collaboration entries.",
+      });
+    }
     // Batch-mode video entries must specify a shoot day. Without one we
     // can't compute the script/shoot/edit dates. Ad-hoc entries skip this.
     if (
@@ -139,6 +147,7 @@ const updateSchema = z.object({
   postUrl: z.string().url().nullable().optional(),
   notes: z.string().max(5000).nullable().optional(),
   branchId: z.string().uuid().nullable().optional(),
+  influencerId: z.string().uuid().nullable().optional(),
   // Authoring fields written asynchronously by the content creator.
   script: z.string().max(20000).nullable().optional(),
   // Director-facing shot list, kept separate from the spoken script
@@ -231,6 +240,8 @@ Deno.serve(async (req) => {
     const toDate = url.searchParams.get("to");
     const campaignIdFilter = url.searchParams.get("campaignId");
     const branchIdFilter = url.searchParams.get("branchId");
+    const influencerIdFilter = url.searchParams.get("influencerId");
+    const typeFilter = url.searchParams.get("type");
     // Inline a slim task summary so the calendar can render production phase
     // pills on each chip without a second round-trip per entry.
     let q = db
@@ -241,6 +252,8 @@ Deno.serve(async (req) => {
     if (toDate) q = q.lte("target_date", toDate);
     if (campaignIdFilter) q = q.eq("campaign_id", campaignIdFilter);
     if (branchIdFilter) q = q.eq("branch_id", branchIdFilter);
+    if (influencerIdFilter) q = q.eq("influencer_id", influencerIdFilter);
+    if (typeFilter) q = q.eq("type", typeFilter);
     const { data, error } = await q;
     if (error) return jsonError("INTERNAL_ERROR", error.message, 500);
     return jsonSuccess(toCamel(data));
@@ -313,6 +326,7 @@ Deno.serve(async (req) => {
       p_brand_id: parsed.data.brandId,
       p_campaign_id: parsed.data.campaignId ?? null,
       p_branch_id: parsed.data.branchId ?? null,
+      p_influencer_id: parsed.data.influencerId ?? null,
       p_type: parsed.data.type,
       p_title: parsed.data.title,
       p_description: parsed.data.description ?? null,
@@ -364,6 +378,7 @@ Deno.serve(async (req) => {
     if (parsed.data.postUrl !== undefined) dbInput.post_url = parsed.data.postUrl;
     if (parsed.data.notes !== undefined) dbInput.notes = parsed.data.notes;
     if (parsed.data.branchId !== undefined) dbInput.branch_id = parsed.data.branchId;
+    if (parsed.data.influencerId !== undefined) dbInput.influencer_id = parsed.data.influencerId;
     if (parsed.data.script !== undefined) dbInput.script = parsed.data.script;
     if (parsed.data.shotDirections !== undefined) dbInput.shot_directions = parsed.data.shotDirections;
     if (parsed.data.caption !== undefined) dbInput.caption = parsed.data.caption;

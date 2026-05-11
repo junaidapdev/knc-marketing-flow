@@ -16,6 +16,8 @@ interface ListParams {
   from?: string;
   to?: string;
   branchId?: string;
+  influencerId?: string;
+  type?: EntryType;
 }
 
 export function useCalendarEntries(params: ListParams) {
@@ -23,7 +25,13 @@ export function useCalendarEntries(params: ListParams) {
     queryKey: [...ENTRIES_KEY, params],
     queryFn: async (): Promise<CalendarEntry[]> => {
       const result = await apiRequest<CalendarEntry[]>("/calendar-entries", {
-        searchParams: { from: params.from, to: params.to, branchId: params.branchId },
+        searchParams: {
+          from: params.from,
+          to: params.to,
+          branchId: params.branchId,
+          influencerId: params.influencerId,
+          type: params.type,
+        },
       });
       if (!result.success) throw new Error(result.error.message);
       return result.data;
@@ -57,6 +65,7 @@ export interface CreateEntryInput {
   assignee: Assignee;
   campaignId?: string | null;
   branchId?: string | null;
+  influencerId?: string | null;
   budgetAllocated?: number;
   budgetCategory?: BudgetCategory | null;
   notes?: string | null;
@@ -108,6 +117,7 @@ export interface UpdateEntryInput {
   postUrl?: string | null;
   notes?: string | null;
   branchId?: string | null;
+  influencerId?: string | null;
   script?: string | null;
   shotDirections?: string | null;
   caption?: string | null;

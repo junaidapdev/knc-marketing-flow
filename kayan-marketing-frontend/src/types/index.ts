@@ -9,3 +9,6 @@ export * from "./budget";
 export * from "./brand";
 export * from "./topic";
 export * from "./marketing-event";
+export * from "./influencer";
+export * from "./portal";
+export * from "./influencer-submission";

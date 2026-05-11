@@ -73,3 +73,28 @@ async-polling refactor — even with `MAX_PROFILES_PER_ACTOR=10` and
 Migration 0042 drops the four feature tables; migrations 0039–0041 stay
 in the repo for historical record. See git history if you ever want to
 revive the implementation.
+
+## Influencer Management Chunk 1: Internal Admin CRUD (DONE)
+- Migration 0046 creates the `influencers` table for the manual internal creator database: profile/contact fields, TikTok/Instagram/Snapchat handles and follower counts, commercial terms, niche/language arrays, notes, status, future `portal_token`, timestamps, updated_at trigger, RLS, and the at-least-one-platform check constraint.
+- Indexes: `idx_influencers_brand_id`, `idx_influencers_status`, unique `idx_influencers_portal_token`, and GIN `idx_influencers_niche_tags`.
+- Constants added for influencer statuses, niche tags, and languages; `Influencer` domain type and Zod create/update schemas added with WhatsApp sanity validation and handle refinement.
+- Edge Function `influencers`: `GET /influencers`, `GET /influencers/:id`, `POST /influencers`, `PATCH /influencers/:id`, and `DELETE /influencers/:id`. List supports `status`, `q`, and `niche` filters; create generates a portal token and activation timestamp server-side.
+
+## Influencer Management Chunk 2: Creator Portal Read-Only (DONE)
+- Added `_shared/portal-auth.ts` for unauthenticated token authorization. It reads `/portal/:token`, uses the token as the authorization secret, returns 401 for invalid/deactivated links, and applies a V1 in-memory per-IP rate limit of 10 requests/minute.
+- Added `_shared/portal-types.ts` with `PortalInfluencerView`, intentionally excluding internal IDs, brand IDs, portal tokens, full names, notes, rates, and statuses from public responses.
+- Added Edge Function `portal`: `GET /portal/:token` returns the safe creator profile view with display name, city, platform handles/URLs/follower counts, niche tags, and languages.
+- Follow-up: replace the in-memory Edge Function rate limiter with a durable/shared limiter before production traffic or multi-region rollout.
+
+## Influencer Management Chunk 3: Post Submission + Verification Queue (DONE)
+- Migration 0047: `calendar_entries.influencer_id` FK; `influencer_submissions` (per-platform post URLs, tagged_kayan, used_promo_code, verification_status with check pending/verified/disputed, verified_at/by, dispute_reason); `influencer_performance_logs` (per-submission per-platform views/likes/comments/shares/reach). At-least-one-post-URL constraint, set_updated_at trigger, RLS authenticated_full_access on both.
+- RPCs (security definer):
+  • `create_entry_with_tasks` re-signed with `p_influencer_id` (raises when `influencer_collab` entries are missing it).
+  • `create_influencer_submission(token, entry_id, urls, tagged_kayan, used_promo_code, notes)` — validates the entry belongs to an `influencer_collab` and to the same influencer the token resolves to; inserts the submission as `pending`; flips entry status `planned`/`in_progress` → `live`; auto-creates a `phase=review` task "Verify {name}'s submission for {entry title}" assigned to junaid, due today.
+  • `update_influencer_submission_verification(submission_id, status, dispute_reason, verified_by)` — verifies or disputes; on verify, auto-creates a `phase=track` task "Log performance for {name} submission" assigned to junaid, due in 5 days; on dispute, requires a non-empty reason.
+- New Edge Functions:
+  • `portal/` extended with `GET /portal/:token/collaborations` (active influencer_collab entries linked to this influencer, joined with any existing submission) and `POST /portal/:token/submissions` (Zod validates URLs, requires at-least-one, enforces platform-handle match, calls the RPC).
+  • `influencer-submissions/` admin endpoint — `GET /influencer-submissions` with filters status / influencerId / from / to (joined influencer, entry, **and now performance_logs** so the Influencer Detail page can aggregate client-side without N+1); `GET /:id`; `PATCH /:id` for verify/dispute.
+  • `influencer-performance/` — list by submissionId, POST (derives influencer_id from the submission), PATCH, DELETE.
+- Calendar entries Edge Function: `?influencerId=` list filter; create + update schemas require `influencerId` when `type === 'influencer_collab'`; positional RPC call updated for the new `p_influencer_id` slot.
+- Operational follow-up: `supabase db push` to land 0047; `supabase functions deploy portal influencer-submissions influencer-performance calendar-entries`.
