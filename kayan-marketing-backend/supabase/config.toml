@@ -25,3 +25,10 @@ site_url = "http://localhost:5173"
 additional_redirect_urls = ["http://localhost:5173"]
 jwt_expiry = 3600
 enable_signup = true
+
+# The creator portal is intentionally public — the URL token IS the
+# auth. Disable Supabase's JWT gateway so requests without an
+# Authorization header reach the function, where requirePortalToken
+# enforces token + active-status + rate-limit checks itself.
+[functions.portal]
+verify_jwt = false
