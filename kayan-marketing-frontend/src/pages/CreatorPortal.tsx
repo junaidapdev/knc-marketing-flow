@@ -4,10 +4,12 @@ import {
   ExternalLink,
   MapPin,
   MessageCircle,
-  Sparkles,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { CREATOR_PORTAL_COPY } from "../constants/portal";
+import { useThemeStore } from "../stores/theme-store";
 import {
   INFLUENCER_LANGUAGE_LABELS,
   type InfluencerLanguage,
@@ -71,9 +73,7 @@ export default function CreatorPortalPage(): JSX.Element {
               </div>
             </div>
           </div>
-          <div className="hidden sm:grid w-10 h-10 rounded-full bg-paper border border-line place-items-center text-yellow">
-            <Sparkles size={18} />
-          </div>
+          <PortalThemeToggle />
         </header>
 
         {profile.isLoading && (
@@ -590,5 +590,30 @@ function PortalReliabilityCard({
       </div>
       <p className="text-[11.5px] text-ink-3 leading-snug">{description}</p>
     </div>
+  );
+}
+
+// Compact theme toggle for the portal header. The admin sidebar's
+// ThemeToggle is full-width with a text label — not the right shape
+// here. This is icon-only and lives in the top-right of the public
+// portal so creators can flip between light and dark to match their
+// device. Wires into the same useThemeStore so the choice persists
+// across visits (localStorage).
+function PortalThemeToggle(): JSX.Element {
+  const theme = useThemeStore((s) => s.theme);
+  const toggle = useThemeStore((s) => s.toggle);
+  const isDark = theme === "dark";
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      role="switch"
+      aria-checked={isDark}
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      className="grid w-10 h-10 rounded-full bg-paper border border-line place-items-center text-ink-2 hover:text-ink hover:border-line-2 transition"
+    >
+      {isDark ? <Sun size={16} /> : <Moon size={16} />}
+    </button>
   );
 }
