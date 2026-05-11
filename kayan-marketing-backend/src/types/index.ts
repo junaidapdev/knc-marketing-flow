@@ -7,3 +7,4 @@ export * from "./budget";
 export * from "./topic";
 export * from "./influencer";
 export * from "./influencer-submission";
+export * from "./report-summary";

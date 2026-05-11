@@ -9,3 +9,4 @@ export * from "./influencer-status";
 export * from "./influencer-niche-tags";
 export * from "./influencer-languages";
 export * from "./influencer-submissions";
+export * from "./report-periods";

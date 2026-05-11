@@ -393,6 +393,7 @@ Deno.serve(async (req) => {
       p_brand_id: topic.brand_id,
       p_campaign_id: campaignId,
       p_branch_id: branchId,
+      p_influencer_id: null,
       p_type: entryType,
       p_title: title,
       p_description: description,

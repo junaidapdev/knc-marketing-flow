@@ -115,3 +115,11 @@ revive the implementation.
 - 4 Edge Functions (`influencers`, `portal`, `influencer-submissions`, `influencer-performance`).
 - 5 RPCs (security definer): `create_entry_with_tasks` re-signed with `p_influencer_id`, `create_influencer_submission`, `update_influencer_submission_verification`, `rotate_influencer_token`, `get_influencer_reliability`.
 - All endpoints follow the common ApiResponse shape; snake → camel via `_shared/case.ts`; portal routes gated by `_shared/portal-auth.ts` (token + active-status + per-IP rate limit). Operational follow-up tracked in the frontend log.
+
+## Reports Module Chunk 1: Backend Summary API (DONE)
+- Added report constants (`REPORT_GRANULARITY`, `PERFORMANCE_COVERAGE_THRESHOLD = 50`, `REPORT_CACHE_TTL_SECONDS = 300`, max 365-day range), `ReportSummary` domain types, and `reportSummaryQuerySchema` validation.
+- Migration 0049 adds `get_report_summary(p_brand_id, p_from, p_to, p_campaign_id, p_branch_id)`, returning a JSONB summary for the period: content counts, activity counts, campaign overlap/top campaign, influencer submissions, and performance coverage/totals. Performance totals are null when coverage is below 50%.
+- New authenticated Edge Function `reports`: `GET /reports/summary?from=YYYY-MM-DD&to=YYYY-MM-DD&compareToPrevious=false&campaignId=&branchId=`. It validates the range, calls the RPC, optionally computes the previous-period comparison, and returns the standard ApiResponse shape.
+- Added a V1 in-memory per-instance report cache with 300s TTL; response meta includes `cached` and `cacheTtlSeconds`.
+- Maintenance fixes made while verifying Chunk 1: `src/validation/calendar-entry.ts` now derives update validation from the base object schema instead of calling `.partial()` on a `superRefine()` result, and `topics/use` now passes `p_influencer_id: null` to the re-signed `create_entry_with_tasks` RPC.
+- Follow-ups: replace the in-memory reports cache with Redis-equivalent/shared durable cache before production traffic; add a server-side image rendering path for scheduled reports.
