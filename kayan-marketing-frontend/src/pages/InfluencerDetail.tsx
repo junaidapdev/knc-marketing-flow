@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Check,
   ChevronLeft,
+  ChevronRight,
   Copy,
   ExternalLink,
   Loader2,
@@ -17,8 +18,14 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ROUTES } from "../constants/routes";
-import { INFLUENCER_LANGUAGE_LABELS } from "../constants/influencer-languages";
-import { INFLUENCER_NICHE_TAG_LABELS } from "../constants/influencer-niche-tags";
+import {
+  INFLUENCER_LANGUAGE_LABELS,
+  type InfluencerLanguage,
+} from "../constants/influencer-languages";
+import {
+  INFLUENCER_NICHE_TAG_LABELS,
+  type InfluencerNicheTag,
+} from "../constants/influencer-niche-tags";
 import {
   INFLUENCER_STATUS,
   INFLUENCER_STATUS_LABELS,
@@ -47,8 +54,9 @@ import type {
 import { logger } from "../utils/logger";
 
 const RELIABILITY_MIN_COLLABS = 3;
-
 const EMPTY_VALUE = "Not set";
+
+// ─── Helpers ────────────────────────────────────────────────────────────
 
 function statusChipClass(status: InfluencerStatus): string {
   switch (status) {
@@ -60,6 +68,19 @@ function statusChipClass(status: InfluencerStatus): string {
       return "status-overdue";
     default:
       return "status-planned";
+  }
+}
+
+function statusBadgeClass(status: InfluencerStatus): string {
+  switch (status) {
+    case INFLUENCER_STATUS.ACTIVE:
+      return "bg-sage text-[#2C5530]";
+    case INFLUENCER_STATUS.PAUSED:
+      return "bg-yellow text-obsidian";
+    case INFLUENCER_STATUS.BLACKLISTED:
+      return "bg-rose text-[#6E2A35]";
+    default:
+      return "bg-cream-2 text-ink-2";
   }
 }
 
@@ -79,9 +100,36 @@ function formatDate(value: string | null): string {
   return new Date(value).toLocaleString();
 }
 
+function formatFollowers(value: number | null): string {
+  if (value === null || value === 0) return "—";
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 10_000) return `${Math.round(value / 1_000)}K`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return value.toLocaleString();
+}
+
+function formatBigNumber(n: number): string {
+  if (n === 0) return "—";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 10_000) return `${Math.round(n / 1_000)}K`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString();
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return (parts[0]?.[0] ?? "?").toUpperCase();
+  return (
+    (parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")
+  ).toUpperCase();
+}
+
 function portalUrl(token: string): string {
   return `${window.location.origin}/creator/${token}`;
 }
+
+// ─── Page ───────────────────────────────────────────────────────────────
 
 export default function InfluencerDetailPage(): JSX.Element {
   const { id } = useParams<{ id: string }>();
@@ -118,7 +166,7 @@ export default function InfluencerDetailPage(): JSX.Element {
   }
 
   return (
-    <div className="px-4 md:px-9 pt-5 md:pt-8 pb-12">
+    <div className="px-4 md:px-9 pt-5 md:pt-7 pb-12">
       <button
         onClick={() => navigate(ROUTES.INFLUENCERS)}
         className="flex items-center gap-1 text-[13px] text-ink-3 hover:text-ink mb-4"
@@ -140,132 +188,71 @@ export default function InfluencerDetailPage(): JSX.Element {
 
       {detail.data && (
         <>
-          <header className="flex flex-wrap items-start justify-between gap-3 mb-5 md:mb-6">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h1 className="h-greeting text-[22px] md:text-[30px] break-words">
-                  {detail.data.displayName}
-                </h1>
-                <span className={`chip ${statusChipClass(detail.data.status)}`}>
-                  {INFLUENCER_STATUS_LABELS[detail.data.status]}
-                </span>
-              </div>
-              <p className="text-[12.5px] md:text-[14px] text-ink-2">
-                {detail.data.whatsapp}
-                {detail.data.city ? ` · ${detail.data.city}` : ""}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setEditing(true)}
-                className="btn btn-ghost"
-              >
-                <Pencil size={14} />
-                Edit
-              </button>
-              <button
-                onClick={onDelete}
-                disabled={remove.isPending}
-                className="px-3 py-2 text-[13px] text-rose-deep hover:brightness-90 disabled:opacity-50 flex items-center gap-1.5"
-              >
-                <Trash2 size={14} />
-                Delete
-              </button>
-            </div>
-          </header>
+          <DetailHeader
+            influencer={detail.data}
+            onEdit={() => setEditing(true)}
+            onDelete={onDelete}
+            isDeleting={remove.isPending}
+          />
 
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4">
-            <section className="space-y-4">
-              <DetailSection title="Reliability">
-                <ReliabilityPanel reliability={detail.data.reliability} />
-              </DetailSection>
+          <div className="mt-5 grid grid-cols-12 gap-3 md:gap-4">
+            <Tile className="col-span-12 lg:col-span-8" title="Reliability">
+              <ReliabilityTile reliability={detail.data.reliability} />
+            </Tile>
 
-              <DetailSection title="Contact">
-                <DetailGrid>
-                  <DetailRow
-                    label="Display name"
-                    value={detail.data.displayName}
-                  />
-                  <DetailRow label="Full name" value={detail.data.fullName} />
-                  <DetailRow label="WhatsApp" value={detail.data.whatsapp} />
-                  <DetailRow label="City" value={detail.data.city} />
-                </DetailGrid>
-              </DetailSection>
+            <Tile className="col-span-12 lg:col-span-4" title="Performance">
+              <ActivityStatsTile influencerId={detail.data.id} />
+            </Tile>
 
-              <DetailSection title="Platforms">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                  <PlatformCard
-                    title="TikTok"
-                    handle={detail.data.tiktokHandle}
-                    url={detail.data.tiktokUrl}
-                    followers={detail.data.tiktokFollowers}
-                  />
-                  <PlatformCard
-                    title="Instagram"
-                    handle={detail.data.instagramHandle}
-                    url={detail.data.instagramUrl}
-                    followers={detail.data.instagramFollowers}
-                  />
-                  <PlatformCard
-                    title="Snapchat"
-                    handle={detail.data.snapchatHandle}
-                    url={detail.data.snapchatUrl}
-                    followers={detail.data.snapchatFollowers}
-                  />
-                </div>
-              </DetailSection>
+            <Tile className="col-span-12 lg:col-span-7" title="Platforms">
+              <PlatformsTile influencer={detail.data} />
+            </Tile>
 
-              <DetailSection title="Commercials">
-                <DetailGrid>
-                  <DetailRow
-                    label="Standard rate"
-                    value={formatMoney(detail.data.standardRate)}
-                  />
-                  <DetailRow
-                    label="Accepts barter"
-                    value={detail.data.acceptsBarter ? "Yes" : "No"}
-                  />
-                </DetailGrid>
-              </DetailSection>
+            <Tile
+              className="col-span-12 lg:col-span-5"
+              title="Portal management"
+            >
+              <PortalManagement
+                influencer={detail.data}
+                portalUrl={creatorPortalUrl}
+              />
+            </Tile>
 
-              <DetailSection title="Content fit">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <ChipBlock
-                    label="Niche tags"
-                    emptyLabel="No niche tags"
-                    values={detail.data.nicheTags.map(
-                      (tag) => INFLUENCER_NICHE_TAG_LABELS[tag],
-                    )}
-                  />
-                  <ChipBlock
-                    label="Languages"
-                    emptyLabel="No languages"
-                    values={detail.data.languages.map(
-                      (language) => INFLUENCER_LANGUAGE_LABELS[language],
-                    )}
-                  />
-                </div>
-              </DetailSection>
+            <Tile
+              className="col-span-12 md:col-span-6 lg:col-span-4"
+              title="Contact"
+            >
+              <ContactBlock influencer={detail.data} />
+            </Tile>
 
-              <DetailSection title="Notes">
+            <Tile
+              className="col-span-12 md:col-span-6 lg:col-span-3"
+              title="Commercials"
+            >
+              <CommercialsBlock
+                rate={detail.data.standardRate}
+                barter={detail.data.acceptsBarter}
+              />
+            </Tile>
+
+            <Tile className="col-span-12 lg:col-span-5" title="Content fit">
+              <ContentFitBlock
+                nicheTags={detail.data.nicheTags}
+                languages={detail.data.languages}
+              />
+            </Tile>
+
+            <Tile className="col-span-12" title="Collaborations">
+              <CollaborationsTile influencerId={detail.data.id} />
+            </Tile>
+
+            {detail.data.notes && detail.data.notes.trim() !== "" && (
+              <Tile className="col-span-12" title="Notes">
                 <p className="whitespace-pre-wrap text-[13px] text-ink-2 leading-relaxed">
-                  {detail.data.notes || EMPTY_VALUE}
+                  {detail.data.notes}
                 </p>
-              </DetailSection>
-            </section>
-
-            <aside className="space-y-4">
-              <DetailSection title="Portal management">
-                <PortalManagement
-                  influencer={detail.data}
-                  portalUrl={creatorPortalUrl}
-                />
-              </DetailSection>
-
-              <DetailSection title="Activity">
-                <ActivityPanel influencerId={detail.data.id} />
-              </DetailSection>
-            </aside>
+              </Tile>
+            )}
           </div>
 
           <InfluencerFormModal
@@ -279,30 +266,290 @@ export default function InfluencerDetailPage(): JSX.Element {
   );
 }
 
-function DetailSection({
-  title,
-  children,
+// ─── Header ─────────────────────────────────────────────────────────────
+
+function DetailHeader({
+  influencer,
+  onEdit,
+  onDelete,
+  isDeleting,
 }: {
-  title: string;
-  children: ReactNode;
+  influencer: InfluencerWithReliability;
+  onEdit: () => void;
+  onDelete: () => void;
+  isDeleting: boolean;
 }): JSX.Element {
   return (
-    <section className="card">
-      <h2 className="h-card-sm mb-3">{title}</h2>
+    <header className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-cream-2 border border-line grid place-items-center text-ink font-serif text-[18px] md:text-[20px] font-semibold flex-shrink-0">
+          {getInitials(influencer.displayName)}
+        </div>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="h-greeting text-[22px] md:text-[26px] break-words">
+              {influencer.displayName}
+            </h1>
+            <span className={`chip ${statusChipClass(influencer.status)}`}>
+              {INFLUENCER_STATUS_LABELS[influencer.status]}
+            </span>
+          </div>
+          <p className="text-[12.5px] md:text-[13px] text-ink-2 mt-0.5">
+            {influencer.whatsapp}
+            {influencer.city ? ` · ${influencer.city}` : ""}
+            {influencer.fullName &&
+            influencer.fullName !== influencer.displayName
+              ? ` · ${influencer.fullName}`
+              : ""}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <button onClick={onEdit} className="btn btn-ghost">
+          <Pencil size={14} />
+          Edit
+        </button>
+        <button
+          onClick={onDelete}
+          disabled={isDeleting}
+          className="px-3 py-2 text-[13px] text-rose-deep hover:brightness-90 disabled:opacity-50 flex items-center gap-1.5"
+        >
+          <Trash2 size={14} />
+          Delete
+        </button>
+      </div>
+    </header>
+  );
+}
+
+// ─── Tile primitive ─────────────────────────────────────────────────────
+
+function Tile({
+  title,
+  sub,
+  children,
+  className = "",
+}: {
+  title: string;
+  sub?: string | null;
+  children: ReactNode;
+  className?: string;
+}): JSX.Element {
+  return (
+    <section
+      className={`bg-paper border border-line rounded-lg p-3.5 md:p-4 ${className}`}
+    >
+      <div className="flex items-baseline justify-between gap-2 mb-3">
+        <h2 className="h-card-sm">{title}</h2>
+        {sub ? (
+          <span className="text-[11px] text-ink-3 font-medium">{sub}</span>
+        ) : null}
+      </div>
       {children}
     </section>
   );
 }
 
-function DetailGrid({ children }: { children: ReactNode }): JSX.Element {
+// ─── Reliability ────────────────────────────────────────────────────────
+
+// Same solid-pastel + dark-text pattern as StatTile / chip-*.
+function reliabilityTone(value: number | null): string {
+  if (value === null) return "bg-cream-2 text-ink-3";
+  if (value >= 80) return "bg-sage text-[#2C5530]";
+  if (value >= 50) return "bg-butter text-[#6B4A0F]";
+  return "bg-rose text-[#6E2A35]";
+}
+
+function ReliabilityTile({
+  reliability,
+}: {
+  reliability: InfluencerReliability | null;
+}): JSX.Element {
+  const totalCollabs = reliability?.totalCollabs ?? 0;
+
+  const previewLabels = [
+    { key: "post", label: "Post rate" },
+    { key: "tag", label: "Tag rate" },
+    { key: "ontime", label: "On-time" },
+  ];
+
+  // Gated: < 3 collabs. Compact dots-progress + dimmed preview of what
+  // the unlocked tile will look like, so the user sees what they're
+  // working toward without leaving the tile feeling empty.
+  if (!reliability || totalCollabs < RELIABILITY_MIN_COLLABS) {
+    const dots = Array.from({ length: RELIABILITY_MIN_COLLABS }).map(
+      (_, i) => i < totalCollabs,
+    );
+    return (
+      <div>
+        <div className="flex flex-wrap items-center gap-3 mb-3">
+          <div className="flex gap-1.5">
+            {dots.map((filled, i) => (
+              <span
+                key={i}
+                className={
+                  filled
+                    ? "w-2.5 h-2.5 rounded-full bg-obsidian"
+                    : "w-2.5 h-2.5 rounded-full bg-cream-2 border border-line-2"
+                }
+              />
+            ))}
+          </div>
+          <div className="text-[13px] text-ink-2">
+            <span className="font-semibold text-ink tabular-nums">
+              {totalCollabs}
+            </span>{" "}
+            of {RELIABILITY_MIN_COLLABS} collabs ·{" "}
+            <span className="text-ink-3">
+              Score unlocks at {RELIABILITY_MIN_COLLABS}
+            </span>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 opacity-50">
+          {previewLabels.map((p) => (
+            <div
+              key={p.key}
+              className="rounded-md px-3 py-2.5 bg-cream-2/60 border border-dashed border-line-2"
+            >
+              <div className="text-[9.5px] uppercase tracking-[0.14em] text-ink-3 font-semibold">
+                {p.label}
+              </div>
+              <div className="font-serif text-[24px] font-semibold tabular-nums text-ink-3 leading-none mt-1.5">
+                —
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const rates = [
+    { key: "post", label: "Post rate", value: reliability.postRate },
+    { key: "tag", label: "Tag rate", value: reliability.tagRate },
+    { key: "ontime", label: "On-time", value: reliability.onTimeRate },
+  ];
+
   return (
-    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
-      {children}
-    </dl>
+    <div>
+      <div className="grid grid-cols-3 gap-2">
+        {rates.map((r) => (
+          <div
+            key={r.key}
+            className={`rounded-md px-3 py-2.5 ${reliabilityTone(r.value)}`}
+          >
+            <div className="text-[9.5px] uppercase tracking-[0.14em] font-semibold opacity-75">
+              {r.label}
+            </div>
+            <div className="font-serif text-[24px] font-semibold tabular-nums leading-none mt-1.5">
+              {r.value === null ? "—" : `${r.value}%`}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-ink-3 mt-2.5">
+        {totalCollabs} collab{totalCollabs === 1 ? "" : "s"} ·{" "}
+        {reliability.totalSubmissions} submission
+        {reliability.totalSubmissions === 1 ? "" : "s"} · scored{" "}
+        {format(new Date(reliability.computedAt), "MMM d, yyyy")}
+      </p>
+    </div>
   );
 }
 
-function DetailRow({
+// ─── Platforms ──────────────────────────────────────────────────────────
+
+const PLATFORM_META = {
+  tiktok: { label: "TikTok", chip: "chip-tiktok" },
+  instagram: { label: "Instagram", chip: "chip-ig" },
+  snapchat: { label: "Snapchat", chip: "chip-snap" },
+} as const;
+
+function PlatformRow({
+  platform,
+  handle,
+  url,
+  followers,
+}: {
+  platform: keyof typeof PLATFORM_META;
+  handle: string | null;
+  url: string | null;
+  followers: number | null;
+}): JSX.Element {
+  const meta = PLATFORM_META[platform];
+  const isLinked = handle !== null && handle !== "";
+
+  return (
+    <div className="flex items-center gap-3 py-2 border-b border-line last:border-b-0">
+      <span
+        className={`chip ${meta.chip} !text-[10.5px] flex-shrink-0 w-[80px] justify-center`}
+      >
+        {meta.label}
+      </span>
+      {isLinked ? (
+        <>
+          <span className="text-[13px] text-ink-2 truncate flex-1">
+            @{handle.replace(/^@+/, "")}
+          </span>
+          <span className="text-[12.5px] tabular-nums text-ink-2 flex-shrink-0">
+            {formatFollowers(followers)}
+          </span>
+          {url ? (
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="iconbtn !w-7 !h-7 flex-shrink-0"
+              title={`Open ${meta.label}`}
+              aria-label={`Open ${meta.label}`}
+            >
+              <ExternalLink size={12} />
+            </a>
+          ) : (
+            <span className="w-7" />
+          )}
+        </>
+      ) : (
+        <span className="text-[12.5px] text-ink-3 italic flex-1">
+          Not linked
+        </span>
+      )}
+    </div>
+  );
+}
+
+function PlatformsTile({
+  influencer,
+}: {
+  influencer: InfluencerWithReliability;
+}): JSX.Element {
+  return (
+    <div>
+      <PlatformRow
+        platform="tiktok"
+        handle={influencer.tiktokHandle}
+        url={influencer.tiktokUrl}
+        followers={influencer.tiktokFollowers}
+      />
+      <PlatformRow
+        platform="instagram"
+        handle={influencer.instagramHandle}
+        url={influencer.instagramUrl}
+        followers={influencer.instagramFollowers}
+      />
+      <PlatformRow
+        platform="snapchat"
+        handle={influencer.snapchatHandle}
+        url={influencer.snapchatUrl}
+        followers={influencer.snapchatFollowers}
+      />
+    </div>
+  );
+}
+
+// ─── Inline row / Contact / Commercials / Content fit ──────────────────
+
+function InlineRow({
   label,
   value,
 }: {
@@ -310,49 +557,71 @@ function DetailRow({
   value: string | number | null | undefined;
 }): JSX.Element {
   return (
-    <div>
-      <dt className="eyebrow mb-1">{label}</dt>
-      <dd className="text-ink break-words">{formatValue(value)}</dd>
+    <div className="flex items-baseline justify-between gap-3 py-1.5 border-b border-line last:border-b-0">
+      <span className="text-[10.5px] uppercase tracking-[0.12em] text-ink-3 font-semibold flex-shrink-0">
+        {label}
+      </span>
+      <span className="text-[13px] text-ink text-right break-words min-w-0">
+        {formatValue(value)}
+      </span>
     </div>
   );
 }
 
-function PlatformCard({
-  title,
-  handle,
-  url,
-  followers,
+function ContactBlock({
+  influencer,
 }: {
-  title: string;
-  handle: string | null;
-  url: string | null;
-  followers: number | null;
+  influencer: InfluencerWithReliability;
 }): JSX.Element {
   return (
-    <div className="rounded-md border border-line p-3 text-[13px]">
-      <div className="font-semibold text-ink mb-2">{title}</div>
-      <dl className="space-y-2">
-        <DetailRow label="Handle" value={handle} />
-        <DetailRow label="Followers" value={followers} />
-      </dl>
-      {url ? (
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-[12px] font-semibold text-ink hover:underline mt-3"
-        >
-          Open profile
-          <ExternalLink size={12} />
-        </a>
-      ) : (
-        <p className="text-[12px] text-ink-3 mt-3">{EMPTY_VALUE}</p>
-      )}
+    <div>
+      <InlineRow label="Display" value={influencer.displayName} />
+      <InlineRow label="Full name" value={influencer.fullName} />
+      <InlineRow label="WhatsApp" value={influencer.whatsapp} />
+      <InlineRow label="City" value={influencer.city} />
     </div>
   );
 }
 
-function ChipBlock({
+function CommercialsBlock({
+  rate,
+  barter,
+}: {
+  rate: number | null;
+  barter: boolean;
+}): JSX.Element {
+  return (
+    <div>
+      <InlineRow label="Std. rate" value={formatMoney(rate)} />
+      <InlineRow label="Barter" value={barter ? "Yes" : "No"} />
+    </div>
+  );
+}
+
+function ContentFitBlock({
+  nicheTags,
+  languages,
+}: {
+  nicheTags: InfluencerNicheTag[];
+  languages: InfluencerLanguage[];
+}): JSX.Element {
+  return (
+    <div className="space-y-3">
+      <ChipGroup
+        label="Niche"
+        values={nicheTags.map((tag) => INFLUENCER_NICHE_TAG_LABELS[tag])}
+        emptyLabel="No tags"
+      />
+      <ChipGroup
+        label="Languages"
+        values={languages.map((l) => INFLUENCER_LANGUAGE_LABELS[l])}
+        emptyLabel="No languages"
+      />
+    </div>
+  );
+}
+
+function ChipGroup({
   label,
   values,
   emptyLabel,
@@ -363,7 +632,7 @@ function ChipBlock({
 }): JSX.Element {
   return (
     <div>
-      <div className="eyebrow mb-2">{label}</div>
+      <div className="eyebrow mb-1.5">{label}</div>
       {values.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
           {values.map((value) => (
@@ -373,16 +642,110 @@ function ChipBlock({
           ))}
         </div>
       ) : (
-        <p className="text-[13px] text-ink-3">{emptyLabel}</p>
+        <p className="text-[12.5px] text-ink-3 italic">{emptyLabel}</p>
       )}
     </div>
   );
 }
 
-// ─── Activity panel ──────────────────────────────────────────────────────
-// Fetches the influencer's collabs (calendar_entries of type
-// influencer_collab linked via influencer_id) and submissions list, then
-// renders a Performance summary card + a Collaborations table.
+// ─── Performance stats ──────────────────────────────────────────────────
+
+type StatAccent = "sky" | "sage" | "butter" | "lavender";
+
+// Solid pastel backgrounds with matching dark companion text — same
+// pattern as the existing chip-* classes so they read on both light
+// and dark canvases without separate dark-mode overrides.
+const STAT_TINTS: Record<StatAccent, string> = {
+  sky: "bg-sky text-[#2C4A66]",
+  sage: "bg-sage text-[#2C5530]",
+  butter: "bg-butter text-[#6B4A0F]",
+  lavender: "bg-lavender text-[#4A3A6A]",
+};
+
+function StatTile({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string | number;
+  accent: StatAccent;
+}): JSX.Element {
+  return (
+    <div className={`rounded-md px-3 py-2.5 ${STAT_TINTS[accent]}`}>
+      <div className="text-[9.5px] uppercase tracking-[0.14em] font-semibold opacity-75">
+        {label}
+      </div>
+      <div className="font-serif text-[22px] font-semibold tabular-nums leading-none mt-1.5">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function ActivityStatsTile({
+  influencerId,
+}: {
+  influencerId: string;
+}): JSX.Element {
+  const entries = useCalendarEntries({ influencerId });
+  const submissions = useInfluencerSubmissions({ influencerId });
+
+  const stats = useMemo(() => {
+    let totalSubmissions = 0;
+    let verifiedCount = 0;
+    let views = 0;
+    let engagementSum = 0; // likes + comments + shares
+    for (const s of submissions.data ?? []) {
+      totalSubmissions += 1;
+      if (s.verificationStatus === "verified") verifiedCount += 1;
+      for (const log of s.performanceLogs ?? []) {
+        views += log.views ?? 0;
+        engagementSum +=
+          (log.likes ?? 0) + (log.comments ?? 0) + (log.shares ?? 0);
+      }
+    }
+    const totalCollabs = (entries.data ?? []).filter(
+      (e) => e.type === ENTRY_TYPES.INFLUENCER_COLLAB,
+    ).length;
+    return {
+      totalCollabs,
+      totalSubmissions,
+      verifiedCount,
+      views,
+      engagementSum,
+    };
+  }, [entries.data, submissions.data]);
+
+  const isLoading = entries.isLoading || submissions.isLoading;
+
+  if (isLoading) {
+    return <p className="text-[13px] text-ink-3">Loading…</p>;
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <StatTile label="Collabs" value={stats.totalCollabs} accent="sky" />
+      <StatTile
+        label="Verified"
+        value={`${stats.verifiedCount}/${stats.totalSubmissions || 0}`}
+        accent="sage"
+      />
+      <StatTile
+        label="Views"
+        value={formatBigNumber(stats.views)}
+        accent="butter"
+      />
+      <StatTile
+        label="Engagement"
+        value={formatBigNumber(stats.engagementSum)}
+        accent="lavender"
+      />
+    </div>
+  );
+}
+
+// ─── Collaborations ─────────────────────────────────────────────────────
 
 const SUBMISSION_STATUS_CHIP: Record<InfluencerSubmissionStatus, string> = {
   pending: "bg-yellow text-obsidian",
@@ -395,18 +758,22 @@ interface CollabRow {
   submission: InfluencerSubmissionListItem | null;
 }
 
-function ActivityPanel({ influencerId }: { influencerId: string }): JSX.Element {
+function CollaborationsTile({
+  influencerId,
+}: {
+  influencerId: string;
+}): JSX.Element {
   const entries = useCalendarEntries({ influencerId });
   const submissions = useInfluencerSubmissions({ influencerId });
 
-  // Submissions keyed by entryId — at most one submission per entry in
-  // current V1, but the create flow doesn't strictly enforce uniqueness.
-  // We surface the most recent submission per entry.
   const submissionByEntry = useMemo(() => {
     const map = new Map<string, InfluencerSubmissionListItem>();
     for (const s of submissions.data ?? []) {
       const existing = map.get(s.entryId);
-      if (!existing || new Date(s.submittedAt) > new Date(existing.submittedAt)) {
+      if (
+        !existing ||
+        new Date(s.submittedAt) > new Date(existing.submittedAt)
+      ) {
         map.set(s.entryId, s);
       }
     }
@@ -423,212 +790,71 @@ function ActivityPanel({ influencerId }: { influencerId: string }): JSX.Element 
     }));
   }, [entries.data, submissionByEntry]);
 
-  // Performance aggregate — sum across every performance log on every
-  // verified submission. Missing fields contribute 0.
-  const perf = useMemo(() => {
-    let totalSubmissions = 0;
-    let verifiedCount = 0;
-    let views = 0;
-    let likes = 0;
-    let comments = 0;
-    let shares = 0;
-    for (const s of submissions.data ?? []) {
-      totalSubmissions += 1;
-      if (s.verificationStatus === "verified") verifiedCount += 1;
-      for (const log of s.performanceLogs ?? []) {
-        views += log.views ?? 0;
-        likes += log.likes ?? 0;
-        comments += log.comments ?? 0;
-        shares += log.shares ?? 0;
-      }
-    }
-    return {
-      totalCollabs: collabs.length,
-      totalSubmissions,
-      verifiedCount,
-      views,
-      likes,
-      comments,
-      shares,
-    };
-  }, [submissions.data, collabs.length]);
-
   const isLoading = entries.isLoading || submissions.isLoading;
-
-  return (
-    <div className="space-y-4">
-      <PerformanceSummaryCard perf={perf} isLoading={isLoading} />
-      <CollaborationsTable
-        collabs={collabs}
-        isLoading={isLoading}
-        isError={entries.isError || submissions.isError}
-      />
-    </div>
-  );
-}
-
-function PerformanceSummaryCard({
-  perf,
-  isLoading,
-}: {
-  perf: {
-    totalCollabs: number;
-    totalSubmissions: number;
-    verifiedCount: number;
-    views: number;
-    likes: number;
-    comments: number;
-    shares: number;
-  };
-  isLoading: boolean;
-}): JSX.Element {
-  const hasAnyData =
-    perf.totalCollabs > 0 ||
-    perf.totalSubmissions > 0 ||
-    perf.views > 0 ||
-    perf.likes > 0;
+  const isError = entries.isError || submissions.isError;
 
   if (isLoading) {
-    return <p className="text-[13px] text-ink-3">Loading activity…</p>;
+    return <p className="text-[13px] text-ink-3">Loading collabs…</p>;
   }
-  if (!hasAnyData) {
+  if (isError) {
+    return (
+      <p className="text-[13px] text-rose-deep">
+        Couldn't load collabs. Try refreshing.
+      </p>
+    );
+  }
+  if (collabs.length === 0) {
     return (
       <p className="text-[13px] text-ink-3 italic">
-        No collabs or submissions yet. Activity will populate as deals run.
+        No collaborations yet. Create an influencer_collab calendar entry to
+        link this creator.
       </p>
     );
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[12.5px]">
-      <Stat label="Collabs" value={perf.totalCollabs} />
-      <Stat label="Submissions" value={perf.totalSubmissions} />
-      <Stat label="Verified" value={perf.verifiedCount} />
-      <Stat label="Views" value={perf.views.toLocaleString()} />
-      <Stat label="Likes" value={perf.likes.toLocaleString()} />
-      <Stat label="Comments" value={perf.comments.toLocaleString()} />
-      <Stat label="Shares" value={perf.shares.toLocaleString()} />
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}): JSX.Element {
-  return (
-    <div className="rounded-md bg-cream-2/60 border border-line p-2.5">
-      <div className="eyebrow mb-1">{label}</div>
-      <div className="text-ink font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}
-
-// ─── Reliability panel ──────────────────────────────────────────────────
-
-function reliabilityChipClass(value: number | null): string {
-  if (value === null) return "bg-cream-2 text-ink-3";
-  if (value >= 80) return "bg-sage text-[#2C5530]";
-  if (value >= 50) return "bg-yellow text-obsidian";
-  return "bg-rose text-[#6E2A35]";
-}
-
-function formatRate(value: number | null): string {
-  if (value === null) return "—";
-  return `${value}%`;
-}
-
-function ReliabilityPanel({
-  reliability,
-}: {
-  reliability: InfluencerReliability | null;
-}): JSX.Element {
-  // Use the same ≥3 collab gate as the portal — fewer than that and
-  // even the admin score is statistically uninteresting.
-  const totalCollabs = reliability?.totalCollabs ?? 0;
-  if (!reliability || totalCollabs < RELIABILITY_MIN_COLLABS) {
-    return (
-      <div className="rounded-md border border-line bg-cream-2/30 p-3 text-[12.5px] text-ink-2">
-        Reliability score appears after {RELIABILITY_MIN_COLLABS} completed
-        collabs.{" "}
-        <span className="text-ink-3">
-          Currently: {totalCollabs} collab
-          {totalCollabs === 1 ? "" : "s"}.
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-        <ReliabilityCard
-          label="Post rate"
-          value={reliability.postRate}
-          description="Collabs where a post was submitted"
-        />
-        <ReliabilityCard
-          label="Tag rate"
-          value={reliability.tagRate}
-          description="Submissions that tagged Kayan"
-        />
-        <ReliabilityCard
-          label="On-time rate"
-          value={reliability.onTimeRate}
-          description="Submitted within target +1 day"
-        />
-      </div>
-      <p className="text-[11.5px] text-ink-3">
-        {totalCollabs} collab{totalCollabs === 1 ? "" : "s"} ·{" "}
-        {reliability.totalSubmissions} submission
-        {reliability.totalSubmissions === 1 ? "" : "s"} · scored{" "}
-        {format(new Date(reliability.computedAt), "MMM d, yyyy")}
-      </p>
-    </div>
-  );
-}
-
-function ReliabilityCard({
-  label,
-  value,
-  description,
-}: {
-  label: string;
-  value: number | null;
-  description: string;
-}): JSX.Element {
-  return (
-    <div className="rounded-md border border-line p-3 bg-paper">
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className="eyebrow">{label}</span>
-        <span
-          className={`chip ${reliabilityChipClass(value)} font-semibold !text-[11px]`}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+      {collabs.map(({ entry, submission }) => (
+        <Link
+          key={entry.id}
+          to={`${ROUTES.CALENDAR}?entryId=${entry.id}`}
+          className="flex items-center gap-3 rounded-md border border-line px-3 py-2 hover:border-line-2 hover:bg-cream-2/30 transition"
+          title="Open the calendar entry"
         >
-          {formatRate(value)}
-        </span>
-      </div>
-      <p className="text-[11.5px] text-ink-3 leading-snug">{description}</p>
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] text-ink truncate font-medium">
+              {entry.title}
+            </div>
+            <div className="text-[11.5px] text-ink-3 mt-0.5">
+              {format(new Date(entry.targetDate), "MMM d, yyyy")} ·{" "}
+              <span className="capitalize">{entry.status}</span>
+            </div>
+          </div>
+          {submission ? (
+            <span
+              className={`chip ${SUBMISSION_STATUS_CHIP[submission.verificationStatus]} !text-[10.5px]`}
+              title={`Submission ${INFLUENCER_SUBMISSION_STATUS_LABELS[submission.verificationStatus]}`}
+            >
+              {
+                INFLUENCER_SUBMISSION_STATUS_LABELS[
+                  submission.verificationStatus
+                ]
+              }
+            </span>
+          ) : (
+            <span className="chip chip-default !text-[10.5px]">Awaiting</span>
+          )}
+          <ChevronRight
+            size={14}
+            className="text-ink-3 flex-shrink-0"
+          />
+        </Link>
+      ))}
     </div>
   );
 }
 
-// ─── Portal management panel ────────────────────────────────────────────
-
-function statusBadgeClass(status: InfluencerStatus): string {
-  switch (status) {
-    case INFLUENCER_STATUS.ACTIVE:
-      return "bg-sage text-[#2C5530]";
-    case INFLUENCER_STATUS.PAUSED:
-      return "bg-yellow text-obsidian";
-    case INFLUENCER_STATUS.BLACKLISTED:
-      return "bg-rose text-[#6E2A35]";
-    default:
-      return "bg-cream-2 text-ink-2";
-  }
-}
+// ─── Portal management ──────────────────────────────────────────────────
 
 function PortalManagement({
   influencer,
@@ -653,7 +879,10 @@ function PortalManagement({
     [influencer.displayName, portalUrl],
   );
 
-  const copy = async (kind: "url" | "message", value: string): Promise<void> => {
+  const copy = async (
+    kind: "url" | "message",
+    value: string,
+  ): Promise<void> => {
     try {
       await navigator.clipboard.writeText(value);
       if (kind === "url") {
@@ -687,24 +916,22 @@ function PortalManagement({
         setConfirmingBlacklist(false);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Status change failed.";
+      const message =
+        err instanceof Error ? err.message : "Status change failed.";
       setActionError(message);
     }
   };
 
   return (
     <div className="space-y-3 text-[13px]">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
         <span className="eyebrow">Status</span>
-        <span
-          className={`chip ${statusBadgeClass(status)} font-semibold`}
-        >
+        <span className={`chip ${statusBadgeClass(status)} font-semibold`}>
           {INFLUENCER_STATUS_LABELS[status]}
         </span>
       </div>
 
       <div>
-        <div className="eyebrow mb-1">Current portal URL</div>
         <div className="flex items-center gap-1.5 rounded-md border border-line bg-cream-2/40 px-2 py-1.5">
           <span className="font-mono text-[11.5px] text-ink-2 truncate flex-1">
             {portalUrl}
@@ -734,25 +961,25 @@ function PortalManagement({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-1.5">
+      <div className="grid grid-cols-2 gap-1.5">
         <button
           type="button"
           onClick={() => setConfirmingRotate(true)}
           disabled={rotate.isPending}
-          className="btn btn-ghost disabled:opacity-50"
+          className="btn btn-ghost !py-1.5 !text-[12px] disabled:opacity-50"
         >
-          <RotateCw size={13} />
-          Rotate portal link
+          <RotateCw size={12} />
+          Rotate
         </button>
         {status === INFLUENCER_STATUS.ACTIVE && (
           <button
             type="button"
             onClick={() => handleSetStatus(INFLUENCER_STATUS.PAUSED)}
             disabled={setStatus.isPending}
-            className="btn btn-ghost disabled:opacity-50"
+            className="btn btn-ghost !py-1.5 !text-[12px] disabled:opacity-50"
           >
-            <Pause size={13} />
-            Pause creator
+            <Pause size={12} />
+            Pause
           </button>
         )}
         {status === INFLUENCER_STATUS.PAUSED && (
@@ -760,9 +987,9 @@ function PortalManagement({
             type="button"
             onClick={() => handleSetStatus(INFLUENCER_STATUS.ACTIVE)}
             disabled={setStatus.isPending}
-            className="btn btn-ghost disabled:opacity-50"
+            className="btn btn-ghost !py-1.5 !text-[12px] disabled:opacity-50"
           >
-            <Play size={13} />
+            <Play size={12} />
             Reactivate
           </button>
         )}
@@ -771,9 +998,9 @@ function PortalManagement({
             type="button"
             onClick={() => setConfirmingBlacklist(true)}
             disabled={setStatus.isPending}
-            className="btn btn-ghost text-rose-deep disabled:opacity-50"
+            className="btn btn-ghost !py-1.5 !text-[12px] text-rose-deep disabled:opacity-50 col-span-2"
           >
-            <ShieldAlert size={13} />
+            <ShieldAlert size={12} />
             Blacklist
           </button>
         )}
@@ -782,9 +1009,9 @@ function PortalManagement({
             type="button"
             onClick={() => handleSetStatus(INFLUENCER_STATUS.ACTIVE)}
             disabled={setStatus.isPending}
-            className="btn btn-ghost disabled:opacity-50"
+            className="btn btn-ghost !py-1.5 !text-[12px] disabled:opacity-50 col-span-2"
           >
-            <Play size={13} />
+            <Play size={12} />
             Remove from blacklist
           </button>
         )}
@@ -845,10 +1072,9 @@ function RotateConfirmModal({
   onClose: () => void;
   onConfirm: () => void;
 }): JSX.Element {
-  // Two-state flow inside the modal: pre-rotation (confirmation) vs
-  // post-rotation (show the new URL + WhatsApp template). The rotate
-  // mutation invalidates the influencer detail query so on success
-  // `portalUrl` reflects the new token already.
+  // Two-state flow: pre-rotation confirmation vs post-rotation reveal of
+  // the new URL + WhatsApp template. Rotate invalidates the detail query
+  // so portalUrl already reflects the new token on success.
   const [rotated, setRotated] = useState(false);
 
   const onConfirmAndShow = async (): Promise<void> => {
@@ -1004,8 +1230,8 @@ function BlacklistConfirmModal({
             </span>
           </div>
           <p>
-            You can remove the blacklist later — the database row stays
-            intact, only their <strong>status</strong> changes.
+            You can remove the blacklist later — the database row stays intact,
+            only their <strong>status</strong> changes.
           </p>
         </div>
         <footer className="flex items-center justify-end gap-2 px-5 py-4 border-t border-line">
@@ -1031,77 +1257,6 @@ function BlacklistConfirmModal({
             )}
           </button>
         </footer>
-      </div>
-    </div>
-  );
-}
-
-function CollaborationsTable({
-  collabs,
-  isLoading,
-  isError,
-}: {
-  collabs: CollabRow[];
-  isLoading: boolean;
-  isError: boolean;
-}): JSX.Element {
-  if (isLoading) {
-    return <p className="text-[13px] text-ink-3">Loading collabs…</p>;
-  }
-  if (isError) {
-    return (
-      <p className="text-[13px] text-rose-deep">
-        Couldn't load collabs. Try refreshing.
-      </p>
-    );
-  }
-  if (collabs.length === 0) {
-    return (
-      <p className="text-[13px] text-ink-3 italic">
-        No collaborations yet. Create an influencer_collab calendar entry to
-        link this creator.
-      </p>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      <div className="eyebrow">Collaborations</div>
-      <div className="space-y-1.5">
-        {collabs.map(({ entry, submission }) => (
-          <Link
-            key={entry.id}
-            to={`${ROUTES.CALENDAR}?entryId=${entry.id}`}
-            className="block rounded-md border border-line p-2.5 hover:border-line-2 hover:bg-cream-2/30 transition"
-            title="Open the calendar entry"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="text-[13px] text-ink truncate">
-                  {entry.title}
-                </div>
-                <div className="text-[11.5px] text-ink-3 mt-0.5">
-                  {format(new Date(entry.targetDate), "MMM d, yyyy")} ·{" "}
-                  <span className="capitalize">{entry.status}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                {submission ? (
-                  <span
-                    className={`chip ${SUBMISSION_STATUS_CHIP[submission.verificationStatus]} !text-[10.5px]`}
-                    title={`Submission ${INFLUENCER_SUBMISSION_STATUS_LABELS[submission.verificationStatus]}`}
-                  >
-                    {INFLUENCER_SUBMISSION_STATUS_LABELS[submission.verificationStatus]}
-                  </span>
-                ) : (
-                  <span className="chip chip-default !text-[10.5px]">
-                    Awaiting
-                  </span>
-                )}
-              </div>
-            </div>
-          </Link>
-        ))}
       </div>
     </div>
   );
