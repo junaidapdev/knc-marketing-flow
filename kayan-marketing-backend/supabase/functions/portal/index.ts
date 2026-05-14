@@ -249,10 +249,12 @@ async function listCollaborations(
   db: ReturnType<typeof createClient>,
   influencerId: string,
 ): Promise<Response> {
+  // After migration 0050, calendar_entries.type was replaced by `format` —
+  // influencer collabs are now `format = 'influencer_collab'`.
   const { data: entries, error: entriesError } = await db
     .from("calendar_entries")
     .select("id, title, description, target_date, status, notes")
-    .eq("type", "influencer_collab")
+    .eq("format", "influencer_collab")
     .eq("influencer_id", influencerId)
     .in("status", [...ACTIVE_COLLAB_STATUSES])
     .order("target_date", { ascending: false });
