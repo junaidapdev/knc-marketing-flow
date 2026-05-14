@@ -15,16 +15,17 @@ import { toCamel } from "../_shared/case.ts";
 //   2. Validate each suggestion with Zod, resolve branch_name → branch_id,
 //      then bulk-insert.
 
-const ENTRY_TYPE_VALUES = [
-  "tiktok_video",
-  "instagram_reel",
-  "instagram_story",
-  "snapchat_story",
+const CONTENT_FORMAT_VALUES = [
+  "video",
+  "story",
   "shop_activity",
   "influencer_collab",
   "offer",
   "general",
 ] as const;
+
+const PLATFORM_VALUES = ["tiktok", "instagram", "snapchat"] as const;
+const CONTENT_FORMATS = new Set<string>(["video", "story"]);
 
 const PATTERN_ID_REGEX = /^P\d{1,2}$/;
 
@@ -49,7 +50,11 @@ const suggestionSchema = z.object({
   suggested_branch: z.string().min(1).max(120).nullable().optional(),
   theme: z.string().min(1).max(200),
   occasion: z.string().min(1).max(40).default("regular"),
-  entry_type: z.enum(ENTRY_TYPE_VALUES).default("instagram_reel"),
+  format: z.enum(CONTENT_FORMAT_VALUES).default("video"),
+  // Default platforms — only meaningful for video/story formats. The post-
+  // validation step in this function normalizes by clearing them for non-
+  // content formats and falling back to all-platforms for content if empty.
+  default_platforms: z.array(z.enum(PLATFORM_VALUES)).default([]),
   reasoning: z.string().min(1).max(1000).optional(),
 });
 
@@ -258,7 +263,8 @@ Example A — Lucerne Swiss chocolate, supplier-visit + reciprocity + return gua
   "suggested_branch": null,
   "theme": "lucerne supplier visit",
   "occasion": "regular",
-  "entry_type": "instagram_reel",
+  "format": "video",
+  "default_platforms": ["tiktok", "instagram", "snapchat"],
   "reasoning": "Behind-the-scenes + reciprocity + return guarantee — high-trust angle, Saudi-pride bonus."
 }
 
@@ -272,7 +278,8 @@ Example B — Eid distributions, problem-solution + price ladder:
   "suggested_branch": "Al Salama",
   "theme": "eid distributions boxes",
   "occasion": "eid",
-  "entry_type": "instagram_reel",
+  "format": "video",
+  "default_platforms": ["tiktok", "instagram", "snapchat"],
   "reasoning": "Eid is upcoming + 'موضوعك عندي' is a proven high-engagement Kayan opener."
 }
 
@@ -291,7 +298,8 @@ Generate ${count} fresh topic ideas. Prioritize stale branches + stale patterns.
       "suggested_branch": "<exact branch name from voice config, or null if not branch-specific>",
       "theme": "<focus product or angle, 3-8 words, English or Arabic — internal label>",
       "occasion": "<one of: regular, ramadan, eid, national_day, mothers_day, fathers_day, back_to_school, summer, derby_weekend, riyadh_season>",
-      "entry_type": "<one of: tiktok_video, instagram_reel, instagram_story, snapchat_story, shop_activity, influencer_collab, offer, general>",
+      "format": "<one of: video, story, shop_activity, influencer_collab, offer, general>",
+      "default_platforms": "<array — only when format is video or story. Pick from: tiktok, instagram, snapchat. Default to all three for videos.>",
       "reasoning": "<one English sentence: why this combo, why now>"
     }
     // ... ${count} total
@@ -301,7 +309,9 @@ Generate ${count} fresh topic ideas. Prioritize stale branches + stale patterns.
 Rules:
 - pattern_id MUST be one of the 9 patterns (P1–P9).
 - suggested_branch MUST exactly match a branch name in voice config, or be null.
-- entry_type defaults to "instagram_reel" unless the topic clearly fits another format.
+- format defaults to "video" unless the topic clearly fits another shape.
+- default_platforms is required for video/story formats (one or more of tiktok/instagram/snapchat). Use [] for other formats.
+- One shoot = one entry. Don't split a single video idea across multiple entries per platform — list all platforms in default_platforms.
 - DO NOT repeat queued topics or recent themes.
 - DO NOT invent specific prices — use the placeholders.
 - DO NOT include any commentary outside the JSON.`;
@@ -526,27 +536,41 @@ Deno.serve(async (req) => {
     branchByName.set(b.name.toLowerCase(), b.id);
   }
 
-  const rowsToInsert = validated.map((s) => ({
-    brand_id: brandId,
-    title: s.title,
-    title_en: s.title_en ?? null,
-    // Use the AI's `description` (the angle write-up). Fall back to
-    // `reasoning` for legacy callers and earlier prompt versions that
-    // didn't emit a description field.
-    description: s.description ?? s.reasoning ?? null,
-    description_en: s.description_en ?? null,
-    pattern_id: s.pattern_id,
-    branch_id: s.suggested_branch
-      ? (branchByName.get(s.suggested_branch.toLowerCase()) ?? null)
-      : null,
-    theme: s.theme,
-    occasion: s.occasion,
-    entry_type: s.entry_type,
-    priority: 0,
-    notes: null,
-    created_by: auth.userId,
-    status: "queued" as const,
-  }));
+  const rowsToInsert = validated.map((s) => {
+    // Normalize platforms vs format: content formats need at least one
+    // platform; if the AI forgot, default to all three. Non-content formats
+    // must have an empty array (the DB CHECK is strict).
+    const isContent = CONTENT_FORMATS.has(s.format);
+    let defaultPlatforms = s.default_platforms ?? [];
+    if (isContent && defaultPlatforms.length === 0) {
+      defaultPlatforms = ["tiktok", "instagram", "snapchat"];
+    }
+    if (!isContent) {
+      defaultPlatforms = [];
+    }
+    return {
+      brand_id: brandId,
+      title: s.title,
+      title_en: s.title_en ?? null,
+      // Use the AI's `description` (the angle write-up). Fall back to
+      // `reasoning` for legacy callers and earlier prompt versions that
+      // didn't emit a description field.
+      description: s.description ?? s.reasoning ?? null,
+      description_en: s.description_en ?? null,
+      pattern_id: s.pattern_id,
+      branch_id: s.suggested_branch
+        ? (branchByName.get(s.suggested_branch.toLowerCase()) ?? null)
+        : null,
+      theme: s.theme,
+      occasion: s.occasion,
+      format: s.format,
+      default_platforms: defaultPlatforms,
+      priority: 0,
+      notes: null,
+      created_by: auth.userId,
+      status: "queued" as const,
+    };
+  });
 
   const { data: inserted, error: insertErr } = await db
     .from("topics")

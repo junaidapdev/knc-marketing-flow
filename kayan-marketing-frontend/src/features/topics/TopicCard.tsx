@@ -8,7 +8,12 @@ import {
   type TopicOccasion,
   type TopicStatus,
 } from "../../constants/topics";
-import { ENTRY_TYPE_LABELS, type EntryType } from "../../constants/entry-types";
+import {
+  CONTENT_FORMAT_LABELS,
+  CONTENT_FORMATS_WITH_PLATFORMS,
+  type ContentFormat,
+} from "../../constants/content-formats";
+import { SOCIAL_PLATFORM_LABELS } from "../../constants/social-platform";
 import type { Branch } from "../../types/branch";
 import type { Topic } from "../../types/topic";
 
@@ -111,8 +116,17 @@ export function TopicCard({ topic, branch, onUse, onArchive, isUsing, language }
           </span>
         )}
         <span className="text-[11px] px-2 py-0.5 rounded-full bg-cream-2 text-ink-2">
-          {ENTRY_TYPE_LABELS[topic.entryType as EntryType] ?? topic.entryType}
+          {CONTENT_FORMAT_LABELS[topic.format as ContentFormat] ?? topic.format}
         </span>
+        {CONTENT_FORMATS_WITH_PLATFORMS.has(topic.format) &&
+          (topic.defaultPlatforms ?? []).map((p) => (
+            <span
+              key={p}
+              className="text-[11px] px-2 py-0.5 rounded-full bg-cream text-ink-3 border border-line"
+            >
+              {SOCIAL_PLATFORM_LABELS[p]}
+            </span>
+          ))}
         {branch && (
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-sage text-[#2C5530] flex items-center gap-1">
             <MapPin size={10} />

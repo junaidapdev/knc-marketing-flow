@@ -82,10 +82,8 @@ export const REPORT_SECTION_TITLES = {
 } as const;
 
 export const REPORT_METRIC_LABELS = {
-  tiktokVideos: "TikTok Videos",
-  instagramReels: "Instagram Reels",
-  instagramStories: "Instagram Stories",
-  snapchatStories: "Snapchat Stories",
+  videos: "Videos",
+  stories: "Stories",
   shopActivities: "Shop Activities",
   offers: "Offers",
   influencerCollabs: "Influencer Collabs",
@@ -149,10 +147,11 @@ export const REPORT_TEXT_COPY = {
   title: "Kayan Marketing Report",
   content: "Content:",
   posts: "posts",
+  videos: "Videos:",
+  stories: "Stories:",
   tiktok: "TikTok:",
-  igReels: "IG Reels:",
-  igStories: "IG Stories:",
-  snapStories: "Snap Stories:",
+  instagram: "Instagram:",
+  snapchat: "Snapchat:",
   activities: "Activities:",
   shopActivities: "shop activities",
   offers: "offers",

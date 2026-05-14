@@ -27,10 +27,15 @@ import {
 } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 import {
-  ENTRY_TYPES,
-  ENTRY_TYPE_LABELS,
-  type EntryType,
-} from "../../constants/entry-types";
+  CONTENT_FORMATS,
+  CONTENT_FORMAT_LABELS,
+  CONTENT_FORMATS_WITH_PLATFORMS,
+  type ContentFormat,
+} from "../../constants/content-formats";
+import {
+  SOCIAL_PLATFORM_LABELS,
+  type SocialPlatform,
+} from "../../constants/social-platform";
 import {
   ASSIGNEE_VALUES,
   ASSIGNEE_LABELS,
@@ -39,6 +44,7 @@ import {
 import {
   useEntryDetail,
   useUpdateEntry,
+  useUpdatePublication,
   useDeleteEntry,
   type EntryWithTasks,
 } from "./hooks/use-calendar-entries";
@@ -110,10 +116,11 @@ export function EntryDetailPanel({ entryId, onClose }: Props): JSX.Element | nul
         type: "entry",
         contextId: entryId,
         label: `Entry · ${detail.data.title}`,
-        entryType: detail.data.type as EntryType,
+        entryFormat: detail.data.format as ContentFormat,
         payload: {
           entry: {
-            type: detail.data.type,
+            format: detail.data.format,
+            platforms: (detail.data.publications ?? []).map((p) => p.platform),
             title: detail.data.title,
             description: detail.data.description,
             targetDate: detail.data.targetDate,
@@ -261,7 +268,7 @@ function ModalHeader({
           Entry
         </span>
         <span className="text-[10.5px] px-2 py-0.5 rounded-full bg-cream-2 text-ink-2 truncate">
-          {ENTRY_TYPE_LABELS[entry.type as EntryType] ?? entry.type}
+          {CONTENT_FORMAT_LABELS[entry.format as ContentFormat] ?? entry.format}
         </span>
         {entry.patternId && (
           <span
@@ -364,10 +371,9 @@ function HeaderMenu({
 // ─────────────────── Left rail (always visible) ───────────────────
 
 function LeftRail({ entry }: { entry: EntryWithTasks }): JSX.Element {
-  const isShopActivity = entry.type === ENTRY_TYPES.SHOP_ACTIVITY;
-  const isBatchableType =
-    entry.type === ENTRY_TYPES.TIKTOK_VIDEO ||
-    entry.type === ENTRY_TYPES.INSTAGRAM_REEL;
+  const isShopActivity = entry.format === CONTENT_FORMATS.SHOP_ACTIVITY;
+  const isBatchableType = entry.format === CONTENT_FORMATS.VIDEO;
+  const isContentFormat = CONTENT_FORMATS_WITH_PLATFORMS.has(entry.format);
   const branchLabel = entry.branch
     ? `${entry.branch.name}, ${entry.branch.city}`
     : null;
@@ -383,11 +389,22 @@ function LeftRail({ entry }: { entry: EntryWithTasks }): JSX.Element {
         <RailRow icon={<User size={13} />} label="Assignee">
           <AssigneeProperty entryId={entry.id} initial={entry.assignee} />
         </RailRow>
-        <RailRow icon={<Tag size={13} />} label="Type">
+        <RailRow icon={<Tag size={13} />} label="Format">
           <span className="text-[12.5px] text-ink">
-            {ENTRY_TYPE_LABELS[entry.type as EntryType] ?? entry.type}
+            {CONTENT_FORMAT_LABELS[entry.format as ContentFormat] ?? entry.format}
           </span>
         </RailRow>
+        {isContentFormat && (
+          <RailRow icon={<Tag size={13} />} label="Platforms">
+            <span className="text-[12.5px] text-ink">
+              {(entry.publications ?? []).length === 0
+                ? "—"
+                : (entry.publications ?? [])
+                    .map((p) => SOCIAL_PLATFORM_LABELS[p.platform])
+                    .join(" · ")}
+            </span>
+          </RailRow>
+        )}
         <RailRow icon={<Sparkles size={13} />} label="Pattern">
           <PatternProperty entryId={entry.id} initial={entry.patternId} />
         </RailRow>
@@ -439,22 +456,25 @@ function LeftRail({ entry }: { entry: EntryWithTasks }): JSX.Element {
       </div>
 
       <div className="border-t border-line pt-4 space-y-1">
-        <UrlField
+        <VideoUrlField
           entryId={entry.id}
-          fieldName="videoUrl"
           initial={entry.videoUrl}
-          placeholder="No video URL"
-          icon={<Link2 size={12} />}
-          ariaLabel="Video URL"
         />
-        <UrlField
-          entryId={entry.id}
-          fieldName="postUrl"
-          initial={entry.postUrl}
-          placeholder="No post URL"
-          icon={<Link2 size={12} />}
-          ariaLabel="Post URL"
-        />
+        {isContentFormat && (entry.publications ?? []).length > 0 && (
+          <div className="pt-2 space-y-1">
+            <div className="text-[10.5px] uppercase tracking-wider text-ink-3 font-semibold">
+              Post URLs
+            </div>
+            {(entry.publications ?? []).map((pub) => (
+              <PublicationUrlField
+                key={pub.platform}
+                entryId={entry.id}
+                platform={pub.platform}
+                initial={pub.postUrl}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -498,7 +518,7 @@ function MainPane({
       {/* Brief — short prose blocks, no harsh labels */}
       <Brief entry={entry} />
 
-      {needsContentAuthoring(entry.type) && (
+      {needsContentAuthoring(entry.format) && (
         <div className="mt-6 pt-5 border-t border-line">
           <div className="flex items-center gap-1.5 mb-2.5">
             <Sparkles size={11} className="text-ink-3" />
@@ -507,7 +527,7 @@ function MainPane({
             </span>
           </div>
           <div className="space-y-1.5">
-            {showsScriptField(entry.type) && (
+            {showsScriptField(entry.format) && (
               <ContentCard
                 entry={entry}
                 field="script"
@@ -516,7 +536,7 @@ function MainPane({
                 onEnterFocus={() => onEnterFocus("script")}
               />
             )}
-            {showsShotDirectionsField(entry.type) && (
+            {showsShotDirectionsField(entry.format) && (
               <ContentCard
                 entry={entry}
                 field="shotDirections"
@@ -525,7 +545,7 @@ function MainPane({
                 onEnterFocus={() => onEnterFocus("shotDirections")}
               />
             )}
-            {showsCaptionField(entry.type) && (
+            {showsCaptionField(entry.format) && (
               <ContentCard
                 entry={entry}
                 field="caption"
@@ -534,7 +554,10 @@ function MainPane({
                 onEnterFocus={() => onEnterFocus("caption")}
               />
             )}
-            {showsHashtagsField(entry.type) && (
+            {showsHashtagsField(
+              entry.format,
+              (entry.publications ?? []).map((p) => p.platform),
+            ) && (
               <ContentCard
                 entry={entry}
                 field="hashtags"
@@ -1386,7 +1409,8 @@ function ExpandedCardBody({
         branchId: entry.branchId ?? undefined,
         branchName: entry.branch?.name ?? undefined,
         theme: entry.theme ?? undefined,
-        entryType: entry.type,
+        format: entry.format,
+        platforms: (entry.publications ?? []).map((p) => p.platform),
         targetDate: entry.targetDate,
       };
 
@@ -1772,22 +1796,18 @@ function TaskRow({ task }: { task: Task }): JSX.Element {
   );
 }
 
-// ─────────────────── URL field (compact, in left rail) ───────────────────
+// ─────────────────── URL fields (compact, in left rail) ───────────────────
+// VideoUrlField writes to calendar_entries.video_url (the master / raw file).
+// PublicationUrlField writes to entry_publications.post_url (per platform).
+// Post URLs moved off calendar_entries in migration 0050 — one shoot can land
+// on multiple platforms, so it needs one URL per platform.
 
-function UrlField({
+function VideoUrlField({
   entryId,
-  fieldName,
   initial,
-  placeholder,
-  icon,
-  ariaLabel,
 }: {
   entryId: string;
-  fieldName: "videoUrl" | "postUrl";
   initial: string | null;
-  placeholder: string;
-  icon: ReactNode;
-  ariaLabel: string;
 }): JSX.Element {
   const updateEntry = useUpdateEntry();
   const [value, setValue] = useState(initial ?? "");
@@ -1811,23 +1831,85 @@ function UrlField({
     try {
       await updateEntry.mutateAsync({
         id: entryId,
-        input: { [fieldName]: trimmed.length === 0 ? null : trimmed },
+        input: { videoUrl: trimmed.length === 0 ? null : trimmed },
       });
       lastSavedRef.current = value;
     } catch (err) {
-      logger.error("save url failed", { err: String(err), field: fieldName });
+      logger.error("save video url failed", { err: String(err) });
     }
   };
 
   return (
     <div className="flex items-center gap-1.5 -mx-1.5 px-1.5 py-0.5 rounded-sm hover:bg-cream-2/50">
-      <span className="text-ink-3 flex-shrink-0">{icon}</span>
+      <span className="text-ink-3 flex-shrink-0">
+        <Link2 size={12} />
+      </span>
       <input
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onBlur={save}
-        placeholder={placeholder}
-        aria-label={ariaLabel}
+        placeholder="No video URL"
+        aria-label="Video URL"
+        className="flex-1 min-w-0 bg-transparent border-none outline-none text-[12px] text-ink placeholder:text-ink-3/70 placeholder:italic focus:ring-0"
+      />
+    </div>
+  );
+}
+
+function PublicationUrlField({
+  entryId,
+  platform,
+  initial,
+}: {
+  entryId: string;
+  platform: SocialPlatform;
+  initial: string | null;
+}): JSX.Element {
+  const updatePublication = useUpdatePublication();
+  const [value, setValue] = useState(initial ?? "");
+  const lastSavedRef = useRef(initial ?? "");
+
+  useEffect(() => {
+    setValue(initial ?? "");
+    lastSavedRef.current = initial ?? "";
+  }, [initial]);
+
+  const save = async (): Promise<void> => {
+    const trimmed = value.trim();
+    if (value === lastSavedRef.current) return;
+    if (trimmed.length > 0) {
+      try {
+        new URL(trimmed);
+      } catch {
+        return;
+      }
+    }
+    try {
+      await updatePublication.mutateAsync({
+        entryId,
+        platform,
+        input: { postUrl: trimmed.length === 0 ? null : trimmed },
+      });
+      lastSavedRef.current = value;
+    } catch (err) {
+      logger.error("save publication url failed", {
+        err: String(err),
+        platform,
+      });
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 -mx-1.5 px-1.5 py-0.5 rounded-sm hover:bg-cream-2/50">
+      <span className="text-ink-3 flex-shrink-0 text-[10.5px] font-semibold uppercase tracking-wider w-[55px]">
+        {SOCIAL_PLATFORM_LABELS[platform]}
+      </span>
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        placeholder="No URL"
+        aria-label={`${SOCIAL_PLATFORM_LABELS[platform]} post URL`}
         className="flex-1 min-w-0 bg-transparent border-none outline-none text-[12px] text-ink placeholder:text-ink-3/70 placeholder:italic focus:ring-0"
       />
     </div>

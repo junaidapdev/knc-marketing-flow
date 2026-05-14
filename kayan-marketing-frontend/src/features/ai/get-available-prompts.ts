@@ -1,12 +1,7 @@
 import { ROUTES } from "../../constants/routes";
-import { ENTRY_TYPES } from "../../constants/entry-types";
+import { CONTENT_FORMATS } from "../../constants/content-formats";
 import { PROMPT_TEMPLATES, type PromptTemplate } from "../../constants/ai";
 import type { AIContext } from "../../stores/ai-store";
-
-const VIDEO_ENTRY_TYPES = new Set<string>([
-  ENTRY_TYPES.TIKTOK_VIDEO,
-  ENTRY_TYPES.INSTAGRAM_REEL,
-]);
 
 const ALWAYS_AVAILABLE: PromptTemplate[] = [
   PROMPT_TEMPLATES.TREND_BRIEF,
@@ -18,8 +13,8 @@ const ALWAYS_AVAILABLE: PromptTemplate[] = [
 export function getAvailablePrompts(routePath: string, ctx: AIContext): PromptTemplate[] {
   const head: PromptTemplate[] = [];
 
-  // Entry-type-aware prompts (a video entry is the highest-leverage context)
-  if (ctx.type === "entry" && ctx.entryType && VIDEO_ENTRY_TYPES.has(ctx.entryType)) {
+  // Format-aware prompts (a video context is the highest-leverage entry).
+  if (ctx.type === "entry" && ctx.entryFormat === CONTENT_FORMATS.VIDEO) {
     head.push(
       PROMPT_TEMPLATES.GENERATE_SCRIPT,
       PROMPT_TEMPLATES.SUGGEST_HOOKS,

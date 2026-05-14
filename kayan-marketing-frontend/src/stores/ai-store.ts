@@ -1,13 +1,14 @@
 import { create } from "zustand";
 import type { AIContextType, PromptTemplate } from "../constants/ai";
-import type { EntryType } from "../constants/entry-types";
+import type { ContentFormat } from "../constants/content-formats";
 
 export interface AIContext {
   type: AIContextType;
   contextId: string | null;
   label: string;
-  // Optional refinement so the prompt list can be entry-type-aware
-  entryType?: EntryType;
+  // Optional refinement so the prompt list can be format-aware (e.g., video
+  // contexts get the Generate Script / Suggest Hooks templates).
+  entryFormat?: ContentFormat;
   // Free-form payload sent to the AI alongside the user message
   payload?: Record<string, unknown>;
 }

@@ -31,7 +31,10 @@ const entryContextSchema = z
     branchId: z.string().uuid().optional(),
     branchName: z.string().min(1).max(120).optional(),
     theme: z.string().min(1).max(200).optional(),
-    entryType: z.string().min(1).max(40).optional(),
+    // Content format after migration 0050 (video/story/etc.) + the platforms
+    // the entry publishes to. Both optional so older callers don't break.
+    format: z.string().min(1).max(40).optional(),
+    platforms: z.array(z.enum(["tiktok", "instagram", "snapchat"])).optional(),
     occasion: z.string().min(1).max(40).optional(),
     targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   })
@@ -96,7 +99,13 @@ function buildEntryBriefBlock(
   }
   if (ctx.branchName) lines.push(`Branch to feature: ${ctx.branchName}`);
   if (ctx.theme) lines.push(`Product/theme focus: ${ctx.theme}`);
-  if (ctx.entryType) lines.push(`Format: ${ctx.entryType}`);
+  if (ctx.format) {
+    const platformLine =
+      ctx.platforms && ctx.platforms.length > 0
+        ? ` (publishing to ${ctx.platforms.join(", ")})`
+        : "";
+    lines.push(`Format: ${ctx.format}${platformLine}`);
+  }
   // occasion: if absent, the spec says to default to "regular content" rather
   // than omit, so the LLM has SOMETHING to anchor on.
   lines.push(`Occasion: ${ctx.occasion ?? "regular content"}`);

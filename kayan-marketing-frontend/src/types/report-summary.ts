@@ -1,5 +1,11 @@
 export type ReportTopPlatform = "tiktok" | "instagram" | "snapchat";
 
+export interface PlatformBreakdown {
+  tiktok: number;
+  instagram: number;
+  snapchat: number;
+}
+
 export interface ReportPeriod {
   from: string;
   to: string;
@@ -28,14 +34,15 @@ export interface ReportSummary {
   comparison: ReportComparison | null;
   content: {
     totalPosted: number;
-    byType: {
-      tiktokVideo: number;
-      instagramReel: number;
-      instagramStory: number;
-      snapchatStory: number;
-    };
     videosTotal: number;
     storiesTotal: number;
+    // Per-platform splits. After migration 0050, one shoot = one entry that
+    // can land on multiple platforms via entry_publications. These three
+    // breakdowns answer "how many videos / stories / total publications
+    // landed on each platform in the range."
+    videosByPlatform: PlatformBreakdown;
+    storiesByPlatform: PlatformBreakdown;
+    postsByPlatform: PlatformBreakdown;
   };
   activities: {
     shopActivities: number;

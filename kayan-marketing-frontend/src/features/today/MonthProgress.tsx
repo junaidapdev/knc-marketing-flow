@@ -11,7 +11,7 @@ import {
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCalendarEntries } from "../calendar/hooks/use-calendar-entries";
 import type { CalendarEntry } from "../../types/calendar-entry";
-import type { EntryType } from "../../constants/entry-types";
+import { CONTENT_FORMATS, type ContentFormat } from "../../constants/content-formats";
 
 type ProgressBucket = "done" | "in_progress" | "overdue" | "planned";
 
@@ -37,12 +37,9 @@ function bucketFor(entry: CalendarEntry, today: string): ProgressBucket {
   return "planned";
 }
 
-const VIDEO_TYPES: EntryType[] = ["tiktok_video", "instagram_reel"];
-const STORY_TYPES: EntryType[] = ["instagram_story", "snapchat_story"];
-
-function groupOf(type: EntryType): "videos" | "stories" | "other" {
-  if (VIDEO_TYPES.includes(type)) return "videos";
-  if (STORY_TYPES.includes(type)) return "stories";
+function groupOf(format: ContentFormat): "videos" | "stories" | "other" {
+  if (format === CONTENT_FORMATS.VIDEO) return "videos";
+  if (format === CONTENT_FORMATS.STORY) return "stories";
   return "other";
 }
 
@@ -165,9 +162,9 @@ export function MonthProgress({ onOpenEntry }: Props): JSX.Element {
   const all = entries.data ?? [];
 
   const totals = countEntries(all, today);
-  const videos = all.filter((e) => groupOf(e.type) === "videos");
-  const stories = all.filter((e) => groupOf(e.type) === "stories");
-  const others = all.filter((e) => groupOf(e.type) === "other");
+  const videos = all.filter((e) => groupOf(e.format) === "videos");
+  const stories = all.filter((e) => groupOf(e.format) === "stories");
+  const others = all.filter((e) => groupOf(e.format) === "other");
   const videoCounts = countEntries(videos, today);
   const storyCounts = countEntries(stories, today);
   const otherCounts = countEntries(others, today);

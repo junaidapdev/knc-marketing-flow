@@ -4,7 +4,18 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { X, AlertTriangle } from "lucide-react";
 import { addDays, format, parseISO, isValid } from "date-fns";
-import { ENTRY_TYPES, ENTRY_TYPE_LABELS, type EntryType } from "../../constants/entry-types";
+import {
+  CONTENT_FORMATS,
+  CONTENT_FORMAT_LABELS,
+  CONTENT_FORMATS_WITH_PLATFORMS,
+  BATCHABLE_FORMATS,
+  type ContentFormat,
+} from "../../constants/content-formats";
+import {
+  SOCIAL_PLATFORMS,
+  SOCIAL_PLATFORM_LABELS,
+  type SocialPlatform,
+} from "../../constants/social-platform";
 import {
   computeTaskChain,
   computeBatchVideoChain,
@@ -27,22 +38,25 @@ import { InfluencerSelector } from "../influencers/InfluencerSelector";
 import { PATTERNS, type PatternId } from "../../constants/patterns";
 import { logger } from "../../utils/logger";
 
-const ENTRY_TYPE_VALUES = Object.values(ENTRY_TYPES) as [EntryType, ...EntryType[]];
+const FORMAT_VALUES = Object.values(CONTENT_FORMATS) as [ContentFormat, ...ContentFormat[]];
+const PLATFORM_VALUES = Object.values(SOCIAL_PLATFORMS) as [SocialPlatform, ...SocialPlatform[]];
 const BUDGET_CATEGORY_VALUES = Object.values(BUDGET_CATEGORIES) as [BudgetCategory, ...BudgetCategory[]];
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const PRODUCTION_MODES = ["batch", "adhoc"] as const;
 
-// Only these types use the batch shoot-day model. Stories / shop activities
-// keep their existing chains regardless of production mode.
-const BATCHABLE_TYPES: ReadonlySet<EntryType> = new Set([
-  ENTRY_TYPES.TIKTOK_VIDEO,
-  ENTRY_TYPES.INSTAGRAM_REEL,
-]);
+// Default platform set for each content format. Video goes everywhere by
+// default (one shoot, three platforms — the whole point of the refactor).
+// Stories skip TikTok since TikTok stories aren't a meaningful surface.
+const DEFAULT_PLATFORMS: Partial<Record<ContentFormat, SocialPlatform[]>> = {
+  [CONTENT_FORMATS.VIDEO]: ["tiktok", "instagram", "snapchat"],
+  [CONTENT_FORMATS.STORY]: ["instagram", "snapchat"],
+};
 
 const formSchema = z
   .object({
     title: z.string().min(3, "Title must be at least 3 characters.").max(200),
-    type: z.enum(ENTRY_TYPE_VALUES),
+    format: z.enum(FORMAT_VALUES),
+    platforms: z.array(z.enum(PLATFORM_VALUES)),
     targetDate: z.string().regex(DATE_REGEX, "Date is required."),
     assignee: z.enum(ASSIGNEE_VALUES),
     description: z.string().max(2000).optional(),
@@ -55,31 +69,36 @@ const formSchema = z
     productionMode: z.enum(PRODUCTION_MODES),
     shootDate: z.string().optional(),
     editorDaysOffset: z.coerce.number().int().min(0).max(30),
-    // Recipe Book V2 tagging — both optional. Empty string in the form maps
-    // to null on the wire (clears the field).
     patternId: z.string().regex(/^P\d{1,2}$/).or(z.literal("")).optional(),
     theme: z.string().max(200).optional(),
   })
   .superRefine((data, ctx) => {
-    if (data.type === ENTRY_TYPES.SHOP_ACTIVITY && !data.branchId) {
+    if (data.format === CONTENT_FORMATS.SHOP_ACTIVITY && !data.branchId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["branchId"],
         message: "Please select a branch for shop activity entries.",
       });
     }
-    if (data.type === ENTRY_TYPES.INFLUENCER_COLLAB && !data.influencerId) {
+    if (data.format === CONTENT_FORMATS.INFLUENCER_COLLAB && !data.influencerId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["influencerId"],
         message: "Please select an influencer for collaboration entries.",
       });
     }
-    // Batch-mode video entries must have a shoot day. Without it the script
-    // / shoot / edit / schedule chain has no anchor.
+    // Content formats must have at least one platform.
+    if (CONTENT_FORMATS_WITH_PLATFORMS.has(data.format) && data.platforms.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["platforms"],
+        message: "Pick at least one platform.",
+      });
+    }
+    // Batch-mode video entries must have a shoot day.
     if (
       data.productionMode === "batch" &&
-      BATCHABLE_TYPES.has(data.type) &&
+      BATCHABLE_FORMATS.has(data.format) &&
       (!data.shootDate || !DATE_REGEX.test(data.shootDate))
     ) {
       ctx.addIssue({
@@ -94,6 +113,10 @@ type FormInput = z.infer<typeof formSchema>;
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function defaultPlatformsFor(format: ContentFormat): SocialPlatform[] {
+  return DEFAULT_PLATFORMS[format] ?? [];
 }
 
 interface Props {
@@ -124,7 +147,8 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: "",
-      type: ENTRY_TYPES.TIKTOK_VIDEO,
+      format: CONTENT_FORMATS.VIDEO,
+      platforms: defaultPlatformsFor(CONTENT_FORMATS.VIDEO),
       targetDate: defaultDate ?? todayIso(),
       assignee: "junaid",
       description: "",
@@ -142,15 +166,14 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
     },
   });
 
-  // Per-task assignee overrides keyed by phase. Cleared whenever the modal
-  // reopens or the entry type/date changes (since the chain itself changes).
   const [assigneeOverrides, setAssigneeOverrides] = useState<Record<string, Assignee>>({});
 
   useEffect(() => {
     if (isOpen) {
       reset({
         title: "",
-        type: ENTRY_TYPES.TIKTOK_VIDEO,
+        format: CONTENT_FORMATS.VIDEO,
+        platforms: defaultPlatformsFor(CONTENT_FORMATS.VIDEO),
         targetDate: defaultDate ?? todayIso(),
         assignee: "junaid",
         description: "",
@@ -170,25 +193,31 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
     }
   }, [isOpen, defaultDate, reset]);
 
-  const watchedType = watch("type");
+  const watchedFormat = watch("format");
+  const watchedPlatforms = watch("platforms");
   const watchedDate = watch("targetDate");
   const watchedAuto = watch("autoCreateTasks");
   const watchedAssignee = watch("assignee");
   const watchedMode = watch("productionMode");
   const watchedShootDate = watch("shootDate");
   const watchedEditorOffset = watch("editorDaysOffset");
-  const isShopActivity = watchedType === ENTRY_TYPES.SHOP_ACTIVITY;
-  const isInfluencerCollab = watchedType === ENTRY_TYPES.INFLUENCER_COLLAB;
-  const isBatchable = BATCHABLE_TYPES.has(watchedType);
+  const isShopActivity = watchedFormat === CONTENT_FORMATS.SHOP_ACTIVITY;
+  const isInfluencerCollab = watchedFormat === CONTENT_FORMATS.INFLUENCER_COLLAB;
+  const isContentFormat = CONTENT_FORMATS_WITH_PLATFORMS.has(watchedFormat);
+  const isBatchable = BATCHABLE_FORMATS.has(watchedFormat);
   const useBatchChain = isBatchable && watchedMode === "batch";
 
   // Reset per-task overrides when the chain shape changes (different recipe).
   useEffect(() => {
     setAssigneeOverrides({});
-  }, [watchedType]);
+  }, [watchedFormat]);
 
-  // When the user switches type, keep branchId consistent: clear it leaving
-  // shop_activity, autofocus the selector when entering shop_activity.
+  // Reset platforms to the format's sensible default whenever the format
+  // changes. The user can still uncheck/tweak after.
+  useEffect(() => {
+    setValue("platforms", defaultPlatformsFor(watchedFormat), { shouldDirty: true });
+  }, [watchedFormat, setValue]);
+
   useEffect(() => {
     if (!isShopActivity) {
       setValue("branchId", "");
@@ -215,18 +244,17 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
       DATE_REGEX.test(watchedShootDate)
     ) {
       return computeBatchVideoChain({
-        type: watchedType,
         shootDate: watchedShootDate,
         targetDate: watchedDate,
         editorDaysOffset: watchedEditorOffset,
         schedulingBuffer,
       });
     }
-    return computeTaskChain(watchedType, watchedDate);
+    return computeTaskChain(watchedFormat, watchedDate);
   }, [
     watchedAuto,
     watchedDate,
-    watchedType,
+    watchedFormat,
     useBatchChain,
     watchedShootDate,
     watchedEditorOffset,
@@ -246,15 +274,19 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
     setAssigneeOverrides((prev) => ({ ...prev, [phase]: nextAssignee(current) }));
   };
 
+  const togglePlatform = (platform: SocialPlatform): void => {
+    const current = watchedPlatforms ?? [];
+    const next = current.includes(platform)
+      ? current.filter((p) => p !== platform)
+      : [...current, platform];
+    setValue("platforms", next, { shouldDirty: true });
+  };
+
   // The entry-level Assignee field is only shown when there's no task chain
-  // doing the work — either auto-create is off, or the type has an empty
-  // recipe (e.g. "general"). Otherwise we derive the entry's assignee from
-  // the chain rows so the two fields can't disagree.
+  // doing the work — either auto-create is off, or the format has an empty
+  // recipe (e.g. "general").
   const showEntryAssigneePicker = !watchedAuto || basePreview.length === 0;
 
-  // If the chain has a single assignee across all rows, that's the entry
-  // owner. If it's mixed, the entry is co-owned ("both"). When the picker
-  // is shown, the user's manual choice wins.
   const deriveEntryAssignee = (input: FormInput): Assignee => {
     if (showEntryAssigneePicker) return input.assignee;
     const unique = new Set(previewWithOverrides.map((r) => r.assignee));
@@ -267,11 +299,12 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
 
   const onSubmit = async (input: FormInput): Promise<void> => {
     const hasOverrides = Object.keys(assigneeOverrides).length > 0;
-    const isBatchSubmit = BATCHABLE_TYPES.has(input.type) && input.productionMode === "batch";
+    const isBatchSubmit = BATCHABLE_FORMATS.has(input.format) && input.productionMode === "batch";
     try {
       const result = await createEntry.mutateAsync({
         brandId,
-        type: input.type,
+        format: input.format,
+        platforms: CONTENT_FORMATS_WITH_PLATFORMS.has(input.format) ? input.platforms : [],
         title: input.title,
         description: input.description?.trim() ? input.description : null,
         targetDate: input.targetDate,
@@ -282,16 +315,11 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
         autoCreateTasks: input.autoCreateTasks,
         branchId: input.branchId ? input.branchId : null,
         influencerId: input.influencerId ? input.influencerId : null,
-        // Send the resolved chain only if the user changed any assignee;
-        // otherwise let the backend reapply the default recipe.
         taskChainOverride:
           input.autoCreateTasks && hasOverrides ? previewWithOverrides : undefined,
         productionMode: input.productionMode,
-        // Recipe Book V2 tagging — empty string from the form maps to null.
         patternId: input.patternId ? (input.patternId as PatternId) : null,
         theme: input.theme?.trim() ? input.theme.trim() : null,
-        // Only send a shoot date when it's a batch-mode video entry — for
-        // ad-hoc or non-batchable types the field is meaningless.
         shootDate: isBatchSubmit && input.shootDate ? input.shootDate : null,
         editorDaysOffset: input.editorDaysOffset,
       });
@@ -341,11 +369,11 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="field-label">Type</label>
-              <select {...register("type")} className="form-select">
-                {ENTRY_TYPE_VALUES.map((t) => (
-                  <option key={t} value={t}>
-                    {ENTRY_TYPE_LABELS[t]}
+              <label className="field-label">Format</label>
+              <select {...register("format")} className="form-select">
+                {FORMAT_VALUES.map((f) => (
+                  <option key={f} value={f}>
+                    {CONTENT_FORMAT_LABELS[f]}
                   </option>
                 ))}
               </select>
@@ -358,6 +386,40 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
               )}
             </div>
           </div>
+
+          {/* Platforms picker — only for video/story formats. One shoot, post
+              to whichever platforms the user ticks (defaults already filled
+              for the common case). */}
+          {isContentFormat && (
+            <div>
+              <label className="field-label">Platforms</label>
+              <div className="flex flex-wrap gap-2">
+                {PLATFORM_VALUES.map((p) => {
+                  const checked = watchedPlatforms?.includes(p) ?? false;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => togglePlatform(p)}
+                      className={`text-[12.5px] px-3 py-1.5 rounded-full font-medium transition border ${
+                        checked
+                          ? "bg-obsidian text-yellow border-obsidian"
+                          : "bg-cream-2 text-ink-2 border-line hover:bg-cream"
+                      }`}
+                    >
+                      {SOCIAL_PLATFORM_LABELS[p]}
+                    </button>
+                  );
+                })}
+              </div>
+              {errors.platforms && (
+                <p className="text-rose-deep text-[12px] mt-1.5">{errors.platforms.message}</p>
+              )}
+              <p className="text-[11.5px] text-ink-3 mt-1.5">
+                One shoot, multiple platforms. Each platform gets its own post URL after publishing.
+              </p>
+            </div>
+          )}
 
           {isShopActivity && (
             <div>
@@ -408,9 +470,6 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
             </div>
           )}
 
-          {/* Production mode toggle. Only shows for video types — shop
-              activities, stories, etc. always run on their legacy chains so
-              the toggle would just be noise. */}
           {isBatchable && (
             <div>
               <label className="field-label">Production mode</label>
@@ -433,12 +492,11 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
               <p className="text-[11.5px] text-ink-3 mt-1.5">
                 {watchedMode === "batch"
                   ? "Filmed on a planned shoot day with other entries — script, shoot, edit, schedule chain anchors on the shoot date."
-                  : "Made and posted on the fly — used for trends, stories, or anything that bypasses the shoot-day rhythm."}
+                  : "Made and posted on the fly — used for trends or anything that bypasses the shoot-day rhythm."}
               </p>
             </div>
           )}
 
-          {/* Shoot day + editor offset — only relevant for batch-mode videos. */}
           {useBatchChain && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -513,9 +571,6 @@ export function AddEntryModal({ brandId, isOpen, onClose, defaultDate }: Props):
             </div>
           )}
 
-          {/* Recipe Book V2 tagging — both optional. Setting these on
-              creation means the very first ✨ Generate produces an
-              on-pattern, on-theme script. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="field-label">Pattern</label>
@@ -666,7 +721,6 @@ function TimelineWarning(props: TimelineWarningProps): JSX.Element | null {
 
   const issues: string[] = [];
 
-  // Live before shoot — categorically impossible.
   if (target < shoot) {
     issues.push(
       `Live date (${format(target, "MMM d")}) is before the shoot day (${format(
@@ -676,7 +730,6 @@ function TimelineWarning(props: TimelineWarningProps): JSX.Element | null {
     );
   }
 
-  // Live before edit completes — possible only with rushed editing.
   if (target < editFinishes) {
     issues.push(
       `Editing finishes ${format(editFinishes, "MMM d")}, but the live date is ${format(
@@ -686,7 +739,6 @@ function TimelineWarning(props: TimelineWarningProps): JSX.Element | null {
     );
   }
 
-  // Schedule date before edit finishes — content won't exist when it's time to queue.
   if (scheduleBy < editFinishes) {
     issues.push(
       `Editing finishes ${format(editFinishes, "MMM d")}, but the schedule deadline is ${format(

@@ -6,6 +6,9 @@ import { requireAuth } from "../_shared/auth.ts";
 import { toCamel } from "../_shared/case.ts";
 
 // Mirrors src/constants/task-chains.ts. Deno cannot import from the TS source tree directly.
+// Task chains are now keyed by FORMAT (not platform-type) — one chain covers
+// a video across all platforms it lands on, since Junaid shoots once and
+// distributes to TikTok/IG/Snap (decided 2026-05-14).
 type TaskTemplate = {
   phase: string;
   title: string;
@@ -14,23 +17,14 @@ type TaskTemplate = {
 };
 
 const TASK_CHAINS: Record<string, TaskTemplate[]> = {
-  tiktok_video: [
+  video: [
     { phase: "script", title: "Write script", offsetDays: -4, defaultAssignee: "ammar" },
     { phase: "shoot", title: "Shoot footage", offsetDays: -2, defaultAssignee: "junaid" },
     { phase: "edit", title: "Edit video", offsetDays: -1, defaultAssignee: "ammar" },
-    { phase: "post", title: "Post to TikTok", offsetDays: 0, defaultAssignee: "junaid" },
+    { phase: "post", title: "Post across platforms", offsetDays: 0, defaultAssignee: "junaid" },
   ],
-  instagram_reel: [
-    { phase: "script", title: "Write script", offsetDays: -4, defaultAssignee: "ammar" },
-    { phase: "shoot", title: "Shoot footage", offsetDays: -2, defaultAssignee: "junaid" },
-    { phase: "edit", title: "Edit reel", offsetDays: -1, defaultAssignee: "ammar" },
-    { phase: "post", title: "Post to Instagram", offsetDays: 0, defaultAssignee: "junaid" },
-  ],
-  instagram_story: [
-    { phase: "post", title: "Post Instagram story", offsetDays: 0, defaultAssignee: "ammar" },
-  ],
-  snapchat_story: [
-    { phase: "post", title: "Post Snapchat story", offsetDays: 0, defaultAssignee: "ammar" },
+  story: [
+    { phase: "post", title: "Post stories", offsetDays: 0, defaultAssignee: "ammar" },
   ],
   shop_activity: [
     { phase: "plan", title: "Plan & brief staff", offsetDays: -3, defaultAssignee: "junaid" },
@@ -51,20 +45,16 @@ const TASK_CHAINS: Record<string, TaskTemplate[]> = {
   general: [],
 };
 
-const ENTRY_TYPE_VALUES = Object.keys(TASK_CHAINS) as [string, ...string[]];
+const CONTENT_FORMAT_VALUES = Object.keys(TASK_CHAINS) as [string, ...string[]];
+const PLATFORM_VALUES = ["tiktok", "instagram", "snapchat"] as const;
 const ASSIGNEE_VALUES = ["junaid", "ammar", "both"] as const;
 const ENTRY_STATUS_VALUES = ["planned", "in_progress", "live", "done", "cancelled"] as const;
 const PRODUCTION_MODES = ["batch", "adhoc"] as const;
+const CONTENT_FORMATS = new Set(["video", "story"]);
+// Only video format batches meaningfully — script + shoot + edit + schedule
+// anchored on a shoot day. Stories are quick, posted same-day.
+const BATCHABLE_FORMATS = new Set(["video"]);
 
-// Video types are the only ones that batch meaningfully — script + shoot +
-// edit + schedule. Other types (story, shop_activity) keep their legacy
-// chains regardless of production_mode.
-const BATCHABLE_TYPES = new Set(["tiktok_video", "instagram_reel"]);
-
-// Pattern ids live in code (kayan-marketing-frontend/src/constants/patterns.ts
-// + backend mirror). The schema validates shape only — anything matching
-// /^P\d{1,2}$/ is accepted so we don't need to ship a function update every
-// time a new pattern is added to the constants file.
 const patternIdSchema = z
   .string()
   .regex(/^P\d{1,2}$/, "Pattern id like P1, P9")
@@ -78,7 +68,10 @@ const createSchema = z
     campaignId: z.string().uuid().nullable().optional(),
     branchId: z.string().uuid().nullable().optional(),
     influencerId: z.string().uuid().nullable().optional(),
-    type: z.enum(ENTRY_TYPE_VALUES),
+    format: z.enum(CONTENT_FORMAT_VALUES),
+    // Platforms only apply to video / story formats. Validation below enforces
+    // that this matches the format. Empty array allowed for non-content formats.
+    platforms: z.array(z.enum(PLATFORM_VALUES)).default([]),
     title: z.string().min(3).max(200),
     description: z.string().max(2000).nullable().optional(),
     targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -106,25 +99,41 @@ const createSchema = z
       .optional(),
   })
   .superRefine((data, ctx) => {
-    if (data.type === "shop_activity" && !data.branchId) {
+    if (data.format === "shop_activity" && !data.branchId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["branchId"],
         message: "Please select a branch for shop activity entries.",
       });
     }
-    if (data.type === "influencer_collab" && !data.influencerId) {
+    if (data.format === "influencer_collab" && !data.influencerId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["influencerId"],
         message: "Please select an influencer for collaboration entries.",
       });
     }
-    // Batch-mode video entries must specify a shoot day. Without one we
+    // Content formats must pick at least one platform.
+    if (CONTENT_FORMATS.has(data.format) && data.platforms.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["platforms"],
+        message: "Pick at least one platform for video/story entries.",
+      });
+    }
+    // Non-content formats can't carry platforms.
+    if (!CONTENT_FORMATS.has(data.format) && data.platforms.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["platforms"],
+        message: "Platforms only apply to video and story entries.",
+      });
+    }
+    // Batch-mode videos must specify a shoot day. Without one we
     // can't compute the script/shoot/edit dates. Ad-hoc entries skip this.
     if (
       data.productionMode === "batch" &&
-      BATCHABLE_TYPES.has(data.type) &&
+      BATCHABLE_FORMATS.has(data.format) &&
       !data.shootDate
     ) {
       ctx.addIssue({
@@ -144,15 +153,13 @@ const updateSchema = z.object({
   budgetAllocated: z.number().nonnegative().optional(),
   budgetSpent: z.number().nonnegative().optional(),
   videoUrl: z.string().url().nullable().optional(),
-  postUrl: z.string().url().nullable().optional(),
+  // post_url is no longer on calendar_entries — it lives on entry_publications.
+  // Updating per-platform URLs goes through PATCH /calendar-entries/:id/publications/:platform.
   notes: z.string().max(5000).nullable().optional(),
   branchId: z.string().uuid().nullable().optional(),
   influencerId: z.string().uuid().nullable().optional(),
   // Authoring fields written asynchronously by the content creator.
   script: z.string().max(20000).nullable().optional(),
-  // Director-facing shot list, kept separate from the spoken script
-  // (migration 0043). Bilingual short imperatives, populated by the
-  // AI Generate flow or hand-edited.
   shotDirections: z.string().max(10000).nullable().optional(),
   caption: z.string().max(5000).nullable().optional(),
   hashtags: z.string().max(2000).nullable().optional(),
@@ -160,9 +167,15 @@ const updateSchema = z.object({
   productionMode: z.enum(PRODUCTION_MODES).optional(),
   shootDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   editorDaysOffset: z.number().int().min(0).max(30).optional(),
-  // Recipe Book V2 tagging — see migration 0029. Send `null` to clear.
   patternId: patternIdSchema,
   theme: themeSchema,
+});
+
+// Patch one publication's post_url / posted_at. Used by the entry detail panel
+// when the user pastes the live URL after publishing on a specific platform.
+const updatePublicationSchema = z.object({
+  postUrl: z.string().url().nullable().optional(),
+  postedAt: z.string().datetime().nullable().optional(),
 });
 
 function addDays(dateStr: string, days: number): string {
@@ -180,17 +193,15 @@ interface TaskChainItem {
 
 // Build the task chain for a batch-mode video entry. Anchors on the shoot
 // day, then derives script (-1 from shoot), edit (+editorOffset from shoot),
-// and schedule (target_date - schedulingBuffer). The "Post" task disappears
-// because IG/TikTok auto-publish on the live date — no human action needed.
+// and schedule (target_date - schedulingBuffer). "Post" disappears because
+// the schedulers auto-publish on the live date.
 function buildBatchVideoChain(args: {
-  type: string;
   shootDate: string;
   targetDate: string;
   editorDaysOffset: number;
   schedulingBuffer: number;
 }): TaskChainItem[] {
-  const { type, shootDate, targetDate, editorDaysOffset, schedulingBuffer } = args;
-  const platformLabel = type === "tiktok_video" ? "TikTok" : "Instagram";
+  const { shootDate, targetDate, editorDaysOffset, schedulingBuffer } = args;
   return [
     {
       phase: "script",
@@ -212,7 +223,7 @@ function buildBatchVideoChain(args: {
     },
     {
       phase: "schedule",
-      title: `Schedule on ${platformLabel}`,
+      title: "Schedule across platforms",
       dueDate: addDays(targetDate, -schedulingBuffer),
       assignee: "junaid",
     },
@@ -231,44 +242,60 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const pathParts = url.pathname.split("/").filter(Boolean);
-  const lastPart = pathParts[pathParts.length - 1] ?? "";
-  const isCollection = lastPart === "calendar-entries";
-  const entryId = isCollection ? null : lastPart;
+  // Routing:
+  //   /functions/v1/calendar-entries                              → list/create
+  //   /functions/v1/calendar-entries/:id                          → detail/update/delete
+  //   /functions/v1/calendar-entries/:id/publications/:platform   → patch one publication
+  const calIdx = pathParts.indexOf("calendar-entries");
+  const entryId = pathParts[calIdx + 1] ?? null;
+  const subResource = pathParts[calIdx + 2] ?? null;
+  const subResourceId = pathParts[calIdx + 3] ?? null;
+  const isCollection = entryId === null;
+  const isPublicationPatch =
+    entryId !== null && subResource === "publications" && subResourceId !== null;
 
+  // ───── GET list ─────
   if (req.method === "GET" && isCollection) {
     const fromDate = url.searchParams.get("from");
     const toDate = url.searchParams.get("to");
     const campaignIdFilter = url.searchParams.get("campaignId");
     const branchIdFilter = url.searchParams.get("branchId");
     const influencerIdFilter = url.searchParams.get("influencerId");
-    const typeFilter = url.searchParams.get("type");
-    // Inline a slim task summary so the calendar can render production phase
-    // pills on each chip without a second round-trip per entry.
+    const formatFilter = url.searchParams.get("format");
+    // Inline tasks summary + publications so the calendar can render chips
+    // (with platform badges) and production phase pills without a second
+    // round-trip per entry.
     let q = db
       .from("calendar_entries")
-      .select("*, tasks(id, phase, status, due_date, title, assignee)")
+      .select(
+        "*, tasks(id, phase, status, due_date, title, assignee), publications:entry_publications(id, platform, post_url, posted_at)",
+      )
       .order("target_date", { ascending: true });
     if (fromDate) q = q.gte("target_date", fromDate);
     if (toDate) q = q.lte("target_date", toDate);
     if (campaignIdFilter) q = q.eq("campaign_id", campaignIdFilter);
     if (branchIdFilter) q = q.eq("branch_id", branchIdFilter);
     if (influencerIdFilter) q = q.eq("influencer_id", influencerIdFilter);
-    if (typeFilter) q = q.eq("type", typeFilter);
+    if (formatFilter) q = q.eq("format", formatFilter);
     const { data, error } = await q;
     if (error) return jsonError("INTERNAL_ERROR", error.message, 500);
     return jsonSuccess(toCamel(data));
   }
 
-  if (req.method === "GET" && entryId) {
+  // ───── GET detail ─────
+  if (req.method === "GET" && entryId && !subResource) {
     const { data, error } = await db
       .from("calendar_entries")
-      .select("*, tasks(*), branch:branches(id, name, city)")
+      .select(
+        "*, tasks(*), branch:branches(id, name, city), publications:entry_publications(id, platform, post_url, posted_at, created_at, updated_at)",
+      )
       .eq("id", entryId)
       .single();
     if (error) return jsonError("NOT_FOUND", error.message, 404);
     return jsonSuccess(toCamel(data));
   }
 
+  // ───── POST create ─────
   if (req.method === "POST" && isCollection) {
     let body: unknown;
     try {
@@ -295,26 +322,25 @@ Deno.serve(async (req) => {
 
     // Decide which task chain to use:
     //   1. Explicit override always wins.
-    //   2. Batch + a video type with a shoot date → batch chain (anchors on
-    //      shoot date, ends with "Schedule on platform" task).
+    //   2. Batch + video format with a shoot date → batch chain (anchors on
+    //      shoot date, ends with "Schedule across platforms" task).
     //   3. Otherwise → legacy per-entry chain (anchors on target_date).
     let taskChain: TaskChainItem[];
     if (parsed.data.taskChainOverride) {
       taskChain = parsed.data.taskChainOverride;
     } else if (
       parsed.data.productionMode === "batch" &&
-      BATCHABLE_TYPES.has(parsed.data.type) &&
+      BATCHABLE_FORMATS.has(parsed.data.format) &&
       parsed.data.shootDate
     ) {
       taskChain = buildBatchVideoChain({
-        type: parsed.data.type,
         shootDate: parsed.data.shootDate,
         targetDate: parsed.data.targetDate,
         editorDaysOffset: parsed.data.editorDaysOffset,
         schedulingBuffer,
       });
     } else {
-      taskChain = (TASK_CHAINS[parsed.data.type] ?? []).map((t) => ({
+      taskChain = (TASK_CHAINS[parsed.data.format] ?? []).map((t) => ({
         phase: t.phase,
         title: t.title,
         dueDate: addDays(parsed.data.targetDate, t.offsetDays),
@@ -327,7 +353,8 @@ Deno.serve(async (req) => {
       p_campaign_id: parsed.data.campaignId ?? null,
       p_branch_id: parsed.data.branchId ?? null,
       p_influencer_id: parsed.data.influencerId ?? null,
-      p_type: parsed.data.type,
+      p_format: parsed.data.format,
+      p_platforms: parsed.data.platforms,
       p_title: parsed.data.title,
       p_description: parsed.data.description ?? null,
       p_target_date: parsed.data.targetDate,
@@ -340,10 +367,6 @@ Deno.serve(async (req) => {
       p_shoot_date: parsed.data.shootDate ?? null,
       p_production_mode: parsed.data.productionMode,
       p_editor_days_offset: parsed.data.editorDaysOffset,
-      // Recipe Book V2 tagging — pass null when not supplied (RPC defaults
-      // to null but being explicit avoids any positional/named-arg ambiguity).
-      // p_source_topic_id is left to the RPC's default (null); the topic-queue
-      // conversion flow (chunk 5) is the only path that supplies it.
       p_pattern_id: parsed.data.patternId ?? null,
       p_theme: parsed.data.theme ?? null,
     });
@@ -352,7 +375,42 @@ Deno.serve(async (req) => {
     return jsonSuccess(toCamel(data), 201);
   }
 
-  if (req.method === "PATCH" && entryId) {
+  // ───── PATCH one publication (post_url / posted_at) ─────
+  if (req.method === "PATCH" && isPublicationPatch) {
+    const platform = subResourceId;
+    if (!PLATFORM_VALUES.includes(platform as (typeof PLATFORM_VALUES)[number])) {
+      return jsonError("VALIDATION_FAILED", "Unknown platform.", 422);
+    }
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return jsonError("VALIDATION_FAILED", "Invalid JSON.", 400);
+    }
+    const parsed = updatePublicationSchema.safeParse(body);
+    if (!parsed.success) {
+      return jsonError("VALIDATION_FAILED", "Validation failed.", 422, {
+        fieldErrors: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const dbInput: Record<string, unknown> = {};
+    if (parsed.data.postUrl !== undefined) dbInput.post_url = parsed.data.postUrl;
+    if (parsed.data.postedAt !== undefined) dbInput.posted_at = parsed.data.postedAt;
+
+    const { data, error } = await db
+      .from("entry_publications")
+      .update(dbInput)
+      .eq("entry_id", entryId)
+      .eq("platform", platform)
+      .select()
+      .single();
+    if (error) return jsonError("INTERNAL_ERROR", error.message, 500);
+    return jsonSuccess(toCamel(data));
+  }
+
+  // ───── PATCH entry ─────
+  if (req.method === "PATCH" && entryId && !subResource) {
     let body: unknown;
     try {
       body = await req.json();
@@ -375,7 +433,6 @@ Deno.serve(async (req) => {
     if (parsed.data.budgetAllocated !== undefined) dbInput.budget_allocated = parsed.data.budgetAllocated;
     if (parsed.data.budgetSpent !== undefined) dbInput.budget_spent = parsed.data.budgetSpent;
     if (parsed.data.videoUrl !== undefined) dbInput.video_url = parsed.data.videoUrl;
-    if (parsed.data.postUrl !== undefined) dbInput.post_url = parsed.data.postUrl;
     if (parsed.data.notes !== undefined) dbInput.notes = parsed.data.notes;
     if (parsed.data.branchId !== undefined) dbInput.branch_id = parsed.data.branchId;
     if (parsed.data.influencerId !== undefined) dbInput.influencer_id = parsed.data.influencerId;
@@ -386,8 +443,6 @@ Deno.serve(async (req) => {
     if (parsed.data.productionMode !== undefined) dbInput.production_mode = parsed.data.productionMode;
     if (parsed.data.shootDate !== undefined) dbInput.shoot_date = parsed.data.shootDate;
     if (parsed.data.editorDaysOffset !== undefined) dbInput.editor_days_offset = parsed.data.editorDaysOffset;
-    // null clears the field (e.g. picking "None" from the Pattern dropdown);
-    // undefined leaves the existing DB value alone (the field wasn't sent).
     if (parsed.data.patternId !== undefined) dbInput.pattern_id = parsed.data.patternId;
     if (parsed.data.theme !== undefined) dbInput.theme = parsed.data.theme;
 
@@ -401,7 +456,7 @@ Deno.serve(async (req) => {
     return jsonSuccess(toCamel(data));
   }
 
-  if (req.method === "DELETE" && entryId) {
+  if (req.method === "DELETE" && entryId && !subResource) {
     const { error } = await db.from("calendar_entries").delete().eq("id", entryId);
     if (error) return jsonError("INTERNAL_ERROR", error.message, 500);
     return new Response(null, { status: 204, headers: corsHeaders });

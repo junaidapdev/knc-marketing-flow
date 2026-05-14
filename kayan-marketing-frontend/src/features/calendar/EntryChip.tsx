@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import type { CalendarEntry } from "../../types/calendar-entry";
-import { ENTRY_TYPE_COLORS } from "../../constants/entry-colors";
+import { FORMAT_COLORS } from "../../constants/entry-colors";
 import { ASSIGNEE_LABELS } from "../../constants/task-chains";
 import { isEntryContentReady, needsContentAuthoring } from "./content-helpers";
 import { derivePhase } from "./derive-phase";
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export function EntryChip({ entry, onClick, variant = "compact" }: Props): JSX.Element {
-  const colors = ENTRY_TYPE_COLORS[entry.type];
+  const colors = FORMAT_COLORS[entry.format];
   const isStacked = variant === "stacked";
   const today = format(new Date(), "yyyy-MM-dd");
   const phase = derivePhase(entry, today);
@@ -23,7 +23,7 @@ export function EntryChip({ entry, onClick, variant = "compact" }: Props): JSX.E
   // Content-readiness dot (script + caption written) — kept from the
   // previous design. Independent from the phase pill: the dot is about
   // whether *content* is authored, the pill is about *production state*.
-  const showsDot = needsContentAuthoring(entry.type);
+  const showsDot = needsContentAuthoring(entry.format);
   const ready = showsDot && isEntryContentReady(entry);
   const dotTitle = !showsDot
     ? undefined

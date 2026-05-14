@@ -15,7 +15,7 @@ import { useMarketingEvents } from "../marketing-events/hooks";
 import { EntryChip } from "./EntryChip";
 import { useCurrentBrand } from "../../hooks/use-current-brand";
 import { useBrand } from "../brand/hooks/use-brand";
-import { ENTRY_TYPE_COLORS } from "../../constants/entry-colors";
+import { FORMAT_COLORS } from "../../constants/entry-colors";
 import type { CalendarEntry } from "../../types/calendar-entry";
 import type { MarketingEvent, MarketingEventImportance } from "../../types/marketing-event";
 
@@ -219,7 +219,7 @@ export function MonthlyView({
                   <span
                     key={entry.id}
                     className={`w-1.5 h-1.5 rounded-full ${
-                      ENTRY_TYPE_COLORS[entry.type].bg
+                      FORMAT_COLORS[entry.format].bg
                     }`}
                     aria-label={entry.title}
                   />

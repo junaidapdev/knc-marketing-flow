@@ -5,26 +5,32 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { toCamel } from "../_shared/case.ts";
 
-// CRUD for the topics queue (added in migration 0030). Plus a /use action
-// that converts a topic into a calendar entry via create_entry_with_tasks
-// — the RPC handles the topic.status='used' flip atomically (migration 0032).
+// CRUD for the topics queue (added in migration 0030, refactored in
+// migration 0050). Plus a /use action that converts a topic into a calendar
+// entry via create_entry_with_tasks — the RPC handles the topic.status='used'
+// flip atomically.
+//
+// Topics carry a `format` (video/story/etc.) AND `default_platforms`
+// (which platforms to publish to). When "Use this" is clicked, the spawned
+// calendar entry inherits both, so a video topic naturally produces an
+// entry that goes to all its declared platforms.
 
-const ENTRY_TYPE_VALUES = [
-  "tiktok_video",
-  "instagram_reel",
-  "instagram_story",
-  "snapchat_story",
+const CONTENT_FORMAT_VALUES = [
+  "video",
+  "story",
   "shop_activity",
   "influencer_collab",
   "offer",
   "general",
 ] as const;
-
+const PLATFORM_VALUES = ["tiktok", "instagram", "snapchat"] as const;
 const TOPIC_STATUS_VALUES = ["queued", "in_progress", "used", "archived"] as const;
 const ASSIGNEE_VALUES = ["junaid", "ammar", "both"] as const;
 const PRODUCTION_MODES = ["batch", "adhoc"] as const;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const PATTERN_ID_REGEX = /^P\d{1,2}$/;
+
+const CONTENT_FORMATS = new Set<string>(["video", "story"]);
 
 const patternIdSchema = z
   .string()
@@ -34,48 +40,85 @@ const patternIdSchema = z
 
 // ───── Schemas ─────
 
-const createSchema = z.object({
-  brandId: z.string().uuid(),
-  title: z.string().min(3).max(200),
-  // English companions (migration 0045). Optional: a topic can be
-  // saved with only Arabic, only English, or both.
-  titleEn: z.string().max(200).nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
-  descriptionEn: z.string().max(2000).nullable().optional(),
-  patternId: patternIdSchema,
-  branchId: z.string().uuid().nullable().optional(),
-  theme: z.string().max(200).nullable().optional(),
-  occasion: z.string().max(40).nullable().optional(),
-  entryType: z.enum(ENTRY_TYPE_VALUES),
-  priority: z.number().int().min(0).max(100).default(0),
-  notes: z.string().max(5000).nullable().optional(),
-});
+const createSchema = z
+  .object({
+    brandId: z.string().uuid(),
+    title: z.string().min(3).max(200),
+    titleEn: z.string().max(200).nullable().optional(),
+    description: z.string().max(2000).nullable().optional(),
+    descriptionEn: z.string().max(2000).nullable().optional(),
+    patternId: patternIdSchema,
+    branchId: z.string().uuid().nullable().optional(),
+    theme: z.string().max(200).nullable().optional(),
+    occasion: z.string().max(40).nullable().optional(),
+    format: z.enum(CONTENT_FORMAT_VALUES),
+    defaultPlatforms: z.array(z.enum(PLATFORM_VALUES)).default([]),
+    priority: z.number().int().min(0).max(100).default(0),
+    notes: z.string().max(5000).nullable().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (CONTENT_FORMATS.has(data.format) && data.defaultPlatforms.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["defaultPlatforms"],
+        message: "Pick at least one platform for video/story topics.",
+      });
+    }
+    if (!CONTENT_FORMATS.has(data.format) && data.defaultPlatforms.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["defaultPlatforms"],
+        message: "Platforms only apply to video and story topics.",
+      });
+    }
+  });
 
-const updateSchema = z.object({
-  title: z.string().min(3).max(200).optional(),
-  titleEn: z.string().max(200).nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
-  descriptionEn: z.string().max(2000).nullable().optional(),
-  patternId: patternIdSchema,
-  branchId: z.string().uuid().nullable().optional(),
-  theme: z.string().max(200).nullable().optional(),
-  occasion: z.string().max(40).nullable().optional(),
-  entryType: z.enum(ENTRY_TYPE_VALUES).optional(),
-  priority: z.number().int().min(0).max(100).optional(),
-  notes: z.string().max(5000).nullable().optional(),
-  status: z.enum(TOPIC_STATUS_VALUES).optional(),
-});
+const updateSchema = z
+  .object({
+    title: z.string().min(3).max(200).optional(),
+    titleEn: z.string().max(200).nullable().optional(),
+    description: z.string().max(2000).nullable().optional(),
+    descriptionEn: z.string().max(2000).nullable().optional(),
+    patternId: patternIdSchema,
+    branchId: z.string().uuid().nullable().optional(),
+    theme: z.string().max(200).nullable().optional(),
+    occasion: z.string().max(40).nullable().optional(),
+    format: z.enum(CONTENT_FORMAT_VALUES).optional(),
+    defaultPlatforms: z.array(z.enum(PLATFORM_VALUES)).optional(),
+    priority: z.number().int().min(0).max(100).optional(),
+    notes: z.string().max(5000).nullable().optional(),
+    status: z.enum(TOPIC_STATUS_VALUES).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.format !== undefined && data.defaultPlatforms !== undefined) {
+      if (CONTENT_FORMATS.has(data.format) && data.defaultPlatforms.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["defaultPlatforms"],
+          message: "Pick at least one platform for video/story topics.",
+        });
+      }
+      if (!CONTENT_FORMATS.has(data.format) && data.defaultPlatforms.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["defaultPlatforms"],
+          message: "Platforms only apply to video and story topics.",
+        });
+      }
+    }
+  });
 
-// "Use this topic" body. The topic supplies pattern/branch/theme/type;
+// "Use this topic" body. The topic supplies pattern/branch/theme/format/platforms;
 // the user supplies the per-entry fields that change every conversion
-// (target date, assignee, production mode). Optional overrides let the
-// user retitle or repoint at conversion time.
+// (target date, assignee, production mode). Optional `platformsOverride` lets
+// the user trim or expand the topic's platform set at conversion time.
 const useSchema = z.object({
   targetDate: z.string().regex(DATE_REGEX, "Must be YYYY-MM-DD"),
   assignee: z.enum(ASSIGNEE_VALUES),
   shootDate: z.string().regex(DATE_REGEX).nullable().optional(),
   branchId: z.string().uuid().nullable().optional(),
   campaignId: z.string().uuid().nullable().optional(),
+  platformsOverride: z.array(z.enum(PLATFORM_VALUES)).optional(),
   titleOverride: z.string().min(3).max(200).optional(),
   descriptionOverride: z.string().max(2000).nullable().optional(),
   productionMode: z.enum(PRODUCTION_MODES).default("batch"),
@@ -84,8 +127,6 @@ const useSchema = z.object({
 });
 
 // ───── Task chain (mirror of calendar-entries) ─────
-// Used when /use creates an entry — same chains the calendar-entries POST
-// uses so the resulting tasks look identical. Keep the two in sync.
 
 interface TaskTemplate {
   phase: string;
@@ -95,23 +136,14 @@ interface TaskTemplate {
 }
 
 const TASK_CHAINS: Record<string, TaskTemplate[]> = {
-  tiktok_video: [
+  video: [
     { phase: "script", title: "Write script", offsetDays: -4, defaultAssignee: "ammar" },
     { phase: "shoot", title: "Shoot footage", offsetDays: -2, defaultAssignee: "junaid" },
     { phase: "edit", title: "Edit video", offsetDays: -1, defaultAssignee: "ammar" },
-    { phase: "post", title: "Post to TikTok", offsetDays: 0, defaultAssignee: "junaid" },
+    { phase: "post", title: "Post across platforms", offsetDays: 0, defaultAssignee: "junaid" },
   ],
-  instagram_reel: [
-    { phase: "script", title: "Write script", offsetDays: -4, defaultAssignee: "ammar" },
-    { phase: "shoot", title: "Shoot footage", offsetDays: -2, defaultAssignee: "junaid" },
-    { phase: "edit", title: "Edit reel", offsetDays: -1, defaultAssignee: "ammar" },
-    { phase: "post", title: "Post to Instagram", offsetDays: 0, defaultAssignee: "junaid" },
-  ],
-  instagram_story: [
-    { phase: "post", title: "Post Instagram story", offsetDays: 0, defaultAssignee: "ammar" },
-  ],
-  snapchat_story: [
-    { phase: "post", title: "Post Snapchat story", offsetDays: 0, defaultAssignee: "ammar" },
+  story: [
+    { phase: "post", title: "Post stories", offsetDays: 0, defaultAssignee: "ammar" },
   ],
   shop_activity: [
     { phase: "plan", title: "Plan & brief staff", offsetDays: -3, defaultAssignee: "junaid" },
@@ -132,7 +164,7 @@ const TASK_CHAINS: Record<string, TaskTemplate[]> = {
   general: [],
 };
 
-const BATCHABLE_TYPES = new Set(["tiktok_video", "instagram_reel"]);
+const BATCHABLE_FORMATS = new Set<string>(["video"]);
 
 interface TaskChainItem {
   phase: string;
@@ -148,21 +180,19 @@ function addDays(dateStr: string, days: number): string {
 }
 
 function buildBatchVideoChain(args: {
-  type: string;
   shootDate: string;
   targetDate: string;
   editorDaysOffset: number;
   schedulingBuffer: number;
 }): TaskChainItem[] {
-  const { type, shootDate, targetDate, editorDaysOffset, schedulingBuffer } = args;
-  const platformLabel = type === "tiktok_video" ? "TikTok" : "Instagram";
+  const { shootDate, targetDate, editorDaysOffset, schedulingBuffer } = args;
   return [
     { phase: "script", title: "Write script", dueDate: addDays(shootDate, -1), assignee: "ammar" },
     { phase: "shoot", title: "Shoot footage", dueDate: shootDate, assignee: "junaid" },
     { phase: "edit", title: "Edit video", dueDate: addDays(shootDate, editorDaysOffset), assignee: "ammar" },
     {
       phase: "schedule",
-      title: `Schedule on ${platformLabel}`,
+      title: "Schedule across platforms",
       dueDate: addDays(targetDate, -schedulingBuffer),
       assignee: "junaid",
     },
@@ -187,7 +217,6 @@ Deno.serve(async (req) => {
   //   /functions/v1/topics                      → list/create
   //   /functions/v1/topics/:id                  → detail/update/delete
   //   /functions/v1/topics/:id/use              → convert to entry
-  // pathParts after `/functions/v1/`: ["topics"] | ["topics", ":id"] | ["topics", ":id", "use"]
   const topicsIdx = pathParts.indexOf("topics");
   const topicId = pathParts[topicsIdx + 1] ?? null;
   const subAction = pathParts[topicsIdx + 2] ?? null;
@@ -247,7 +276,8 @@ Deno.serve(async (req) => {
         branch_id: parsed.data.branchId ?? null,
         theme: parsed.data.theme ?? null,
         occasion: parsed.data.occasion ?? null,
-        entry_type: parsed.data.entryType,
+        format: parsed.data.format,
+        default_platforms: parsed.data.defaultPlatforms,
         priority: parsed.data.priority,
         notes: parsed.data.notes ?? null,
         created_by: auth.userId,
@@ -282,7 +312,8 @@ Deno.serve(async (req) => {
     if (parsed.data.branchId !== undefined) dbInput.branch_id = parsed.data.branchId;
     if (parsed.data.theme !== undefined) dbInput.theme = parsed.data.theme;
     if (parsed.data.occasion !== undefined) dbInput.occasion = parsed.data.occasion;
-    if (parsed.data.entryType !== undefined) dbInput.entry_type = parsed.data.entryType;
+    if (parsed.data.format !== undefined) dbInput.format = parsed.data.format;
+    if (parsed.data.defaultPlatforms !== undefined) dbInput.default_platforms = parsed.data.defaultPlatforms;
     if (parsed.data.priority !== undefined) dbInput.priority = parsed.data.priority;
     if (parsed.data.notes !== undefined) dbInput.notes = parsed.data.notes;
     if (parsed.data.status !== undefined) dbInput.status = parsed.data.status;
@@ -298,8 +329,6 @@ Deno.serve(async (req) => {
   }
 
   // ───── DELETE → soft delete (status='archived') ─────
-  // Hard delete is reserved for future cleanup. Archived rows stay in the DB
-  // so any calendar entry that referenced them can still resolve the link.
   if (req.method === "DELETE" && topicId && !subAction) {
     const { data, error } = await db
       .from("topics")
@@ -343,7 +372,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    const entryType = (topic.entry_type as string) ?? "general";
+    const format = (topic.format as string) ?? "general";
+    const defaultPlatforms = (topic.default_platforms as string[] | null) ?? [];
+    const platforms =
+      parsed.data.platformsOverride !== undefined
+        ? parsed.data.platformsOverride
+        : defaultPlatforms;
     const title = parsed.data.titleOverride ?? (topic.title as string);
     const description =
       parsed.data.descriptionOverride !== undefined
@@ -355,8 +389,17 @@ Deno.serve(async (req) => {
     const theme = (topic.theme as string | null) ?? null;
     const shootDate = parsed.data.shootDate ?? null;
 
-    // Resolve scheduling buffer from brand settings (same as calendar-entries
-    // POST). Falls back to 3 days when the brand row is missing the column.
+    // Validate platforms for content formats here too — the RPC will also
+    // raise, but giving a clean 422 keeps the UX consistent with calendar-entries.
+    if (CONTENT_FORMATS.has(format) && platforms.length === 0) {
+      return jsonError(
+        "VALIDATION_FAILED",
+        "Pick at least one platform for this video/story topic.",
+        422,
+      );
+    }
+
+    // Resolve scheduling buffer from brand settings.
     const { data: brandRow } = await db
       .from("brands")
       .select("default_scheduling_buffer")
@@ -368,18 +411,17 @@ Deno.serve(async (req) => {
     let taskChain: TaskChainItem[];
     if (
       parsed.data.productionMode === "batch" &&
-      BATCHABLE_TYPES.has(entryType) &&
+      BATCHABLE_FORMATS.has(format) &&
       shootDate
     ) {
       taskChain = buildBatchVideoChain({
-        type: entryType,
         shootDate,
         targetDate: parsed.data.targetDate,
         editorDaysOffset: parsed.data.editorDaysOffset,
         schedulingBuffer,
       });
     } else {
-      taskChain = (TASK_CHAINS[entryType] ?? []).map((t) => ({
+      taskChain = (TASK_CHAINS[format] ?? []).map((t) => ({
         phase: t.phase,
         title: t.title,
         dueDate: addDays(parsed.data.targetDate, t.offsetDays),
@@ -387,14 +429,14 @@ Deno.serve(async (req) => {
       }));
     }
 
-    // The RPC writes the entry AND flips the topic to 'used' atomically
-    // (migration 0032). No second UPDATE here — it's all one transaction.
+    // The RPC writes the entry AND flips the topic to 'used' atomically.
     const { data: rpcResult, error: rpcErr } = await db.rpc("create_entry_with_tasks", {
       p_brand_id: topic.brand_id,
       p_campaign_id: campaignId,
       p_branch_id: branchId,
       p_influencer_id: null,
-      p_type: entryType,
+      p_format: format,
+      p_platforms: platforms,
       p_title: title,
       p_description: description,
       p_target_date: parsed.data.targetDate,

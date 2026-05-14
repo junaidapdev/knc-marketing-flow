@@ -53,18 +53,13 @@ export function buildReportText(summary: ReportSummary, title?: string): string 
     `${REPORT_TEXT_COPY.content} ${formatNumber(
       summary.content.totalPosted,
     )} ${REPORT_TEXT_COPY.posts}`,
-    `- ${REPORT_TEXT_COPY.tiktok} ${formatNumber(
-      summary.content.byType.tiktokVideo,
-    )}`,
-    `- ${REPORT_TEXT_COPY.igReels} ${formatNumber(
-      summary.content.byType.instagramReel,
-    )}`,
-    `- ${REPORT_TEXT_COPY.igStories} ${formatNumber(
-      summary.content.byType.instagramStory,
-    )}`,
-    `- ${REPORT_TEXT_COPY.snapStories} ${formatNumber(
-      summary.content.byType.snapchatStory,
-    )}`,
+    `- ${REPORT_TEXT_COPY.videos} ${formatNumber(summary.content.videosTotal)} (`
+      + `${REPORT_TEXT_COPY.tiktok} ${formatNumber(summary.content.videosByPlatform.tiktok)}, `
+      + `${REPORT_TEXT_COPY.instagram} ${formatNumber(summary.content.videosByPlatform.instagram)}, `
+      + `${REPORT_TEXT_COPY.snapchat} ${formatNumber(summary.content.videosByPlatform.snapchat)})`,
+    `- ${REPORT_TEXT_COPY.stories} ${formatNumber(summary.content.storiesTotal)} (`
+      + `${REPORT_TEXT_COPY.instagram} ${formatNumber(summary.content.storiesByPlatform.instagram)}, `
+      + `${REPORT_TEXT_COPY.snapchat} ${formatNumber(summary.content.storiesByPlatform.snapchat)})`,
     "",
     `${REPORT_TEXT_COPY.activities} ${formatNumber(
       summary.activities.shopActivities,

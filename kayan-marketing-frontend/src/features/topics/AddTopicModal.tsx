@@ -3,7 +3,17 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { X } from "lucide-react";
-import { ENTRY_TYPES, ENTRY_TYPE_LABELS, type EntryType } from "../../constants/entry-types";
+import {
+  CONTENT_FORMATS,
+  CONTENT_FORMAT_LABELS,
+  CONTENT_FORMATS_WITH_PLATFORMS,
+  type ContentFormat,
+} from "../../constants/content-formats";
+import {
+  SOCIAL_PLATFORMS,
+  SOCIAL_PLATFORM_LABELS,
+  type SocialPlatform,
+} from "../../constants/social-platform";
 import { PATTERNS, type PatternId } from "../../constants/patterns";
 import {
   TOPIC_OCCASIONS,
@@ -14,7 +24,19 @@ import { BranchSelector } from "../branches/BranchSelector";
 import { useCreateTopic } from "./hooks/use-topics";
 import { logger } from "../../utils/logger";
 
-const ENTRY_TYPE_VALUES = Object.values(ENTRY_TYPES) as [EntryType, ...EntryType[]];
+const FORMAT_VALUES = Object.values(CONTENT_FORMATS) as [ContentFormat, ...ContentFormat[]];
+const PLATFORM_VALUES = Object.values(SOCIAL_PLATFORMS) as [SocialPlatform, ...SocialPlatform[]];
+
+// Same defaults as AddEntryModal — video goes to all 3 platforms by default
+// since the whole refactor is about "shoot once, post everywhere."
+const DEFAULT_PLATFORMS: Partial<Record<ContentFormat, SocialPlatform[]>> = {
+  [CONTENT_FORMATS.VIDEO]: ["tiktok", "instagram", "snapchat"],
+  [CONTENT_FORMATS.STORY]: ["instagram", "snapchat"],
+};
+
+function defaultPlatformsFor(format: ContentFormat): SocialPlatform[] {
+  return DEFAULT_PLATFORMS[format] ?? [];
+}
 
 const formSchema = z
   .object({
@@ -26,13 +48,12 @@ const formSchema = z
     branchId: z.string().optional(),
     theme: z.string().max(200).optional(),
     occasion: z.string().optional(),
-    entryType: z.enum(ENTRY_TYPE_VALUES),
+    format: z.enum(FORMAT_VALUES),
+    defaultPlatforms: z.array(z.enum(PLATFORM_VALUES)),
     priority: z.coerce.number().int().min(0).max(100),
     notes: z.string().max(5000).optional(),
   })
   .superRefine((data, ctx) => {
-    // At least one of the two title languages must be filled, and that
-    // one must hit the 3-char minimum.
     const ar = (data.title ?? "").trim();
     const en = (data.titleEn ?? "").trim();
     if (ar.length === 0 && en.length === 0) {
@@ -56,6 +77,13 @@ const formSchema = z
         message: "English title must be at least 3 characters.",
       });
     }
+    if (CONTENT_FORMATS_WITH_PLATFORMS.has(data.format) && data.defaultPlatforms.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["defaultPlatforms"],
+        message: "Pick at least one platform.",
+      });
+    }
   });
 
 type FormInput = z.infer<typeof formSchema>;
@@ -73,6 +101,8 @@ export function AddTopicModal({ brandId, isOpen, onClose }: Props): JSX.Element 
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     control,
     formState: { errors, isSubmitting },
   } = useForm<FormInput>({
@@ -86,13 +116,13 @@ export function AddTopicModal({ brandId, isOpen, onClose }: Props): JSX.Element 
       branchId: "",
       theme: "",
       occasion: "regular",
-      entryType: ENTRY_TYPES.INSTAGRAM_REEL,
+      format: CONTENT_FORMATS.VIDEO,
+      defaultPlatforms: defaultPlatformsFor(CONTENT_FORMATS.VIDEO),
       priority: 0,
       notes: "",
     },
   });
 
-  // Reset on open so the form's clean each time the modal pops.
   useEffect(() => {
     if (isOpen) {
       reset({
@@ -102,18 +132,32 @@ export function AddTopicModal({ brandId, isOpen, onClose }: Props): JSX.Element 
         branchId: "",
         theme: "",
         occasion: "regular",
-        entryType: ENTRY_TYPES.INSTAGRAM_REEL,
+        format: CONTENT_FORMATS.VIDEO,
+        defaultPlatforms: defaultPlatformsFor(CONTENT_FORMATS.VIDEO),
         priority: 0,
         notes: "",
       });
     }
   }, [isOpen, reset]);
 
+  const watchedFormat = watch("format");
+  const watchedPlatforms = watch("defaultPlatforms");
+  const showPlatforms = CONTENT_FORMATS_WITH_PLATFORMS.has(watchedFormat);
+
+  // Reset platforms to the format's default whenever format changes.
+  useEffect(() => {
+    setValue("defaultPlatforms", defaultPlatformsFor(watchedFormat), { shouldDirty: true });
+  }, [watchedFormat, setValue]);
+
+  const togglePlatform = (platform: SocialPlatform): void => {
+    const current = watchedPlatforms ?? [];
+    const next = current.includes(platform)
+      ? current.filter((p) => p !== platform)
+      : [...current, platform];
+    setValue("defaultPlatforms", next, { shouldDirty: true });
+  };
+
   const onSubmit = async (input: FormInput): Promise<void> => {
-    // Whichever title was filled becomes the primary `title` (DB-required
-    // historically). If only English was provided, fall it into `title`
-    // and leave `titleEn` null. Mirrors how the AI suggester populates
-    // both halves when it has them, only one half otherwise.
     const arTitle = input.title?.trim() ?? "";
     const enTitle = input.titleEn?.trim() ?? "";
     const titleField = arTitle.length > 0 ? arTitle : enTitle;
@@ -135,7 +179,10 @@ export function AddTopicModal({ brandId, isOpen, onClose }: Props): JSX.Element 
         branchId: input.branchId || null,
         theme: input.theme?.trim() ? input.theme : null,
         occasion: (input.occasion as TopicOccasion) || null,
-        entryType: input.entryType,
+        format: input.format,
+        defaultPlatforms: CONTENT_FORMATS_WITH_PLATFORMS.has(input.format)
+          ? input.defaultPlatforms
+          : [],
         priority: input.priority,
         notes: input.notes?.trim() ? input.notes : null,
       });
@@ -240,16 +287,49 @@ export function AddTopicModal({ brandId, isOpen, onClose }: Props): JSX.Element 
               </select>
             </div>
             <div>
-              <label className="field-label">Entry type</label>
-              <select {...register("entryType")} className="form-select">
-                {ENTRY_TYPE_VALUES.map((t) => (
-                  <option key={t} value={t}>
-                    {ENTRY_TYPE_LABELS[t]}
+              <label className="field-label">Format</label>
+              <select {...register("format")} className="form-select">
+                {FORMAT_VALUES.map((f) => (
+                  <option key={f} value={f}>
+                    {CONTENT_FORMAT_LABELS[f]}
                   </option>
                 ))}
               </select>
             </div>
           </div>
+
+          {showPlatforms && (
+            <div>
+              <label className="field-label">Platforms (default)</label>
+              <div className="flex flex-wrap gap-2">
+                {PLATFORM_VALUES.map((p) => {
+                  const checked = watchedPlatforms?.includes(p) ?? false;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => togglePlatform(p)}
+                      className={`text-[12.5px] px-3 py-1.5 rounded-full font-medium transition border ${
+                        checked
+                          ? "bg-obsidian text-yellow border-obsidian"
+                          : "bg-cream-2 text-ink-2 border-line hover:bg-cream"
+                      }`}
+                    >
+                      {SOCIAL_PLATFORM_LABELS[p]}
+                    </button>
+                  );
+                })}
+              </div>
+              {errors.defaultPlatforms && (
+                <p className="text-rose-deep text-[12px] mt-1.5">
+                  {errors.defaultPlatforms.message}
+                </p>
+              )}
+              <p className="text-[11.5px] text-ink-3 mt-1.5">
+                These default to all checked when "Use this" turns the topic into a calendar entry. You can change them at that point.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

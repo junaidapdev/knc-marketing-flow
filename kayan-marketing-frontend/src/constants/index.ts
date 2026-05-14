@@ -1,6 +1,6 @@
 export * from "./errors";
 export * from "./routes";
-export * from "./entry-types";
+export * from "./content-formats";
 export * from "./task-chains";
 export * from "./budget-categories";
 export * from "./brand";

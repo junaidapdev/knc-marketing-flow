@@ -185,35 +185,49 @@ export const ReportCard = forwardRef<HTMLElement, Props>(function ReportCard(
               </div>
             )}
           </div>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <MetricCard
-              label={REPORT_METRIC_LABELS.tiktokVideos}
-              value={summary.content.byType.tiktokVideo}
+              label={REPORT_METRIC_LABELS.videos}
+              value={summary.content.videosTotal}
               tone="bg-[#1C1C1C] text-white"
             />
             <MetricCard
-              label={REPORT_METRIC_LABELS.instagramReels}
-              value={summary.content.byType.instagramReel}
+              label={REPORT_METRIC_LABELS.stories}
+              value={summary.content.storiesTotal}
               tone="bg-[#F8D4C0] text-[#7A3520]"
             />
-            <MetricCard
-              label={REPORT_METRIC_LABELS.instagramStories}
-              value={summary.content.byType.instagramStory}
-              tone="bg-[#DDD2E8] text-[#4A3A6A]"
-            />
-            <MetricCard
-              label={REPORT_METRIC_LABELS.snapchatStories}
-              value={summary.content.byType.snapchatStory}
-              tone="bg-[#FFD23F] text-[#0E0E0E]"
-            />
           </div>
-          <p className="text-[13px] text-[#4A4A48] mt-3">
-            {REPORT_CARD_COPY.videosLabel}:{" "}
-            {formatNumber(summary.content.videosTotal)}
-            {REPORT_CARD_COPY.metaSeparator}
-            {REPORT_CARD_COPY.storiesLabel}:{" "}
-            {formatNumber(summary.content.storiesTotal)}
-          </p>
+          <div className="mt-4 rounded-[10px] bg-[#FBF6E9] border border-[#E6DFC9] px-4 py-3 text-[13px] text-[#4A4A48] space-y-1.5">
+            <p>
+              <strong className="text-[#1C1C1C]">{REPORT_METRIC_LABELS.videos}:</strong>{" "}
+              {REPORT_PLATFORM_LABELS.tiktok}{" "}
+              <strong className="text-[#1C1C1C]">
+                {formatNumber(summary.content.videosByPlatform.tiktok)}
+              </strong>
+              {REPORT_CARD_COPY.metaSeparator}
+              {REPORT_PLATFORM_LABELS.instagram}{" "}
+              <strong className="text-[#1C1C1C]">
+                {formatNumber(summary.content.videosByPlatform.instagram)}
+              </strong>
+              {REPORT_CARD_COPY.metaSeparator}
+              {REPORT_PLATFORM_LABELS.snapchat}{" "}
+              <strong className="text-[#1C1C1C]">
+                {formatNumber(summary.content.videosByPlatform.snapchat)}
+              </strong>
+            </p>
+            <p>
+              <strong className="text-[#1C1C1C]">{REPORT_METRIC_LABELS.stories}:</strong>{" "}
+              {REPORT_PLATFORM_LABELS.instagram}{" "}
+              <strong className="text-[#1C1C1C]">
+                {formatNumber(summary.content.storiesByPlatform.instagram)}
+              </strong>
+              {REPORT_CARD_COPY.metaSeparator}
+              {REPORT_PLATFORM_LABELS.snapchat}{" "}
+              <strong className="text-[#1C1C1C]">
+                {formatNumber(summary.content.storiesByPlatform.snapchat)}
+              </strong>
+            </p>
+          </div>
         </Section>
 
         <Section title={REPORT_SECTION_TITLES.activities}>

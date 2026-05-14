@@ -303,7 +303,7 @@ function ContentTab({
           <div>
             <div className="font-medium text-ink">{e.title}</div>
             <div className="text-[11.5px] text-ink-3 mt-0.5 capitalize">
-              {e.targetDate} · {e.type.replace("_", " ")} · {e.assignee}
+              {e.targetDate} · {e.format.replace("_", " ")} · {e.assignee}
             </div>
           </div>
           <button

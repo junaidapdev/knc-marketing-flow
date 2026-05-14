@@ -31,7 +31,13 @@ const MESSAGE_SERVER_CONFIG = "Server configuration error.";
 const MESSAGE_SUMMARY_EMPTY = "Report summary response was empty.";
 const CACHE_NONE = "none";
 
-type ReportTopPlatform = "tiktok" | "instagram" | "snapchat";
+type ReportPlatform = "tiktok" | "instagram" | "snapchat";
+
+interface PlatformBreakdown {
+  tiktok: number;
+  instagram: number;
+  snapchat: number;
+}
 
 interface ReportPeriod {
   from: string;
@@ -45,14 +51,14 @@ interface ReportSummaryBase {
   generatedAt: string;
   content: {
     totalPosted: number;
-    byType: {
-      tiktokVideo: number;
-      instagramReel: number;
-      instagramStory: number;
-      snapchatStory: number;
-    };
     videosTotal: number;
     storiesTotal: number;
+    // One shoot = one entry; same shoot can land on 1-3 platforms via
+    // entry_publications. These three counts answer "how many videos / stories
+    // / total publications hit each platform during the range."
+    videosByPlatform: PlatformBreakdown;
+    storiesByPlatform: PlatformBreakdown;
+    postsByPlatform: PlatformBreakdown;
   };
   activities: {
     shopActivities: number;
@@ -91,7 +97,7 @@ interface ReportSummaryBase {
       shares: number;
       reach: number;
     } | null;
-    topPlatform: ReportTopPlatform | null;
+    topPlatform: ReportPlatform | null;
   };
 }
 

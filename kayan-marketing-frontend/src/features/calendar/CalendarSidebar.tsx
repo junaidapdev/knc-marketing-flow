@@ -2,13 +2,14 @@ import { useMemo, useState } from "react";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import { X, AlertCircle } from "lucide-react";
 import { useCalendarEntries } from "./hooks/use-calendar-entries";
-import { ENTRY_TYPE_LABELS, type EntryType } from "../../constants/entry-types";
+import {
+  CONTENT_FORMATS,
+  CONTENT_FORMAT_LABELS,
+  type ContentFormat,
+} from "../../constants/content-formats";
 import type { CalendarEntry } from "../../types/calendar-entry";
 
 type Filter = "all" | "videos" | "stories" | "overdue";
-
-const VIDEO_TYPES: EntryType[] = ["tiktok_video", "instagram_reel"];
-const STORY_TYPES: EntryType[] = ["instagram_story", "snapchat_story"];
 
 type Bucket = "done" | "in_progress" | "overdue" | "planned";
 
@@ -44,6 +45,24 @@ const FILTER_LABELS: Record<Filter, string> = {
   stories: "Stories",
   overdue: "Overdue",
 };
+
+// Build a "TikTok • Instagram • Snap" subtitle for content entries so the
+// sidebar surfaces multi-platform reach at a glance. Falls back to the
+// format label for non-content entries.
+function entrySubtitle(entry: CalendarEntry): string {
+  if (
+    entry.format === CONTENT_FORMATS.VIDEO ||
+    entry.format === CONTENT_FORMATS.STORY
+  ) {
+    const platforms = (entry.publications ?? []).map((p) => p.platform);
+    if (platforms.length === 0) return CONTENT_FORMAT_LABELS[entry.format];
+    const labels = platforms.map((p) =>
+      p === "tiktok" ? "TikTok" : p === "instagram" ? "IG" : "Snap",
+    );
+    return `${CONTENT_FORMAT_LABELS[entry.format]} · ${labels.join(" · ")}`;
+  }
+  return CONTENT_FORMAT_LABELS[entry.format];
+}
 
 interface Props {
   cursor: Date;
@@ -81,16 +100,23 @@ export function CalendarSidebar({
   // header counts; the list itself shows full weeks even if a few days
   // bleed into adjacent months.
   const monthOnly = useMemo(
-    () => (entries.data ?? []).filter((e) => e.targetDate >= monthFromIso && e.targetDate <= monthToIso),
+    () =>
+      (entries.data ?? []).filter(
+        (e) => e.targetDate >= monthFromIso && e.targetDate <= monthToIso,
+      ),
     [entries.data, monthFromIso, monthToIso],
   );
 
+  const matchesFormatFilter = (e: CalendarEntry, f: Filter): boolean => {
+    if (f === "videos") return e.format === CONTENT_FORMATS.VIDEO;
+    if (f === "stories") return e.format === CONTENT_FORMATS.STORY;
+    return true;
+  };
+
   const filtered = useMemo(() => {
     return monthOnly.filter((e) => {
-      if (filter === "videos") return VIDEO_TYPES.includes(e.type);
-      if (filter === "stories") return STORY_TYPES.includes(e.type);
       if (filter === "overdue") return bucketFor(e, today) === "overdue";
-      return true;
+      return matchesFormatFilter(e, filter);
     });
   }, [monthOnly, filter, today]);
 
@@ -100,8 +126,8 @@ export function CalendarSidebar({
     let stories = 0;
     let overdue = 0;
     for (const e of monthOnly) {
-      if (VIDEO_TYPES.includes(e.type)) videos += 1;
-      if (STORY_TYPES.includes(e.type)) stories += 1;
+      if (e.format === CONTENT_FORMATS.VIDEO) videos += 1;
+      if (e.format === CONTENT_FORMATS.STORY) stories += 1;
       if (bucketFor(e, today) === "overdue") overdue += 1;
     }
     return { all: monthOnly.length, videos, stories, overdue };
@@ -124,6 +150,10 @@ export function CalendarSidebar({
   }, [filtered]);
 
   if (!isOpen) return null;
+
+  // ContentFormat is unused at runtime here but keep the import alive for type
+  // inference in entrySubtitle.
+  void (null as unknown as ContentFormat);
 
   return (
     <>
@@ -237,7 +267,7 @@ export function CalendarSidebar({
                               {e.title}
                             </div>
                             <div className="text-[10.5px] text-ink-3 mt-0.5 truncate">
-                              {ENTRY_TYPE_LABELS[e.type]}
+                              {entrySubtitle(e)}
                             </div>
                           </div>
                           {b === "overdue" && (

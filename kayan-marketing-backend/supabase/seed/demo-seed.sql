@@ -52,17 +52,17 @@ begin
   returning id into campaign;
 
   -- ---------- shop_activity entries (one per rollout) ----------
-  insert into calendar_entries (brand_id, campaign_id, type, title, target_date, assignee, status, branch_id, budget_allocated, budget_spent, budget_category)
+  insert into calendar_entries (brand_id, campaign_id, format, title, target_date, assignee, status, branch_id, budget_allocated, budget_spent, budget_category)
   values (brand, campaign, 'shop_activity', 'Setup Ramadan display — Al Rusaifah',
           current_date + 1, 'ammar', 'planned', branch_rusaifah, 400, 0, 'shop_materials')
   returning id into shop_1;
 
-  insert into calendar_entries (brand_id, campaign_id, type, title, target_date, assignee, status, branch_id, budget_allocated, budget_spent, budget_category)
+  insert into calendar_entries (brand_id, campaign_id, format, title, target_date, assignee, status, branch_id, budget_allocated, budget_spent, budget_category)
   values (brand, campaign, 'shop_activity', 'Setup Ramadan display — Al Awali',
           current_date + 2, 'ammar', 'planned', branch_awali, 400, 0, 'shop_materials')
   returning id into shop_2;
 
-  insert into calendar_entries (brand_id, campaign_id, type, title, target_date, assignee, status, branch_id, budget_allocated, budget_spent, budget_category)
+  insert into calendar_entries (brand_id, campaign_id, format, title, target_date, assignee, status, branch_id, budget_allocated, budget_spent, budget_category)
   values (brand, campaign, 'shop_activity', 'Setup Ramadan display — Al Salama',
           current_date - 2, 'junaid', 'live', branch_salama, 400, 380, 'shop_materials')
   returning id into shop_3;
@@ -93,43 +93,87 @@ begin
   -- =========================================================
   -- 3. Standalone calendar entries (variety for the calendar)
   -- =========================================================
-  insert into calendar_entries (brand_id, type, title, target_date, assignee, status, budget_allocated, budget_spent, budget_category)
-  values (brand, 'tiktok_video', 'New flavors arrival — taste-test reel',
+  -- After migration 0050, content rows use format=video|story and per-platform
+  -- publication rows hang off entry_publications. Each video shoot goes to
+  -- all three platforms by default.
+
+  insert into calendar_entries (brand_id, format, title, target_date, assignee, status, budget_allocated, budget_spent, budget_category)
+  values (brand, 'video', 'New flavors arrival — taste-test reel',
           current_date, 'ammar', 'in_progress', 200, 50, 'production')
   returning id into vid_1;
+  insert into entry_publications (entry_id, platform) values
+    (vid_1, 'tiktok'), (vid_1, 'instagram'), (vid_1, 'snapchat');
 
-  insert into calendar_entries (brand_id, type, title, target_date, assignee, status, budget_allocated, budget_spent, budget_category)
-  values (brand, 'tiktok_video', '11.50 SR fixed-price challenge',
+  insert into calendar_entries (brand_id, format, title, target_date, assignee, status, budget_allocated, budget_spent, budget_category)
+  values (brand, 'video', '11.50 SR fixed-price challenge',
           current_date + 3, 'both', 'planned', 250, 0, 'production')
   returning id into vid_2;
+  insert into entry_publications (entry_id, platform) values
+    (vid_2, 'tiktok'), (vid_2, 'instagram'), (vid_2, 'snapchat');
 
-  insert into calendar_entries (brand_id, type, title, target_date, assignee, status)
-  values (brand, 'instagram_reel', 'Boxed chocolates B-roll',
+  insert into calendar_entries (brand_id, format, title, target_date, assignee, status)
+  values (brand, 'video', 'Boxed chocolates B-roll',
           current_date + 1, 'junaid', 'planned')
   returning id into reel_1;
+  -- Reel-style content historically went to IG only; reflect that here.
+  insert into entry_publications (entry_id, platform) values
+    (reel_1, 'instagram');
 
-  insert into calendar_entries (brand_id, type, title, target_date, assignee, status, budget_allocated, budget_spent, budget_category)
+  insert into calendar_entries (brand_id, format, title, target_date, assignee, status, budget_allocated, budget_spent, budget_category)
   values (brand, 'offer', 'Eid pre-launch teaser',
           current_date + 8, 'junaid', 'planned', 1500, 0, 'ad_spend_ig')
   returning id into offer_1;
 
-  insert into calendar_entries (brand_id, type, title, target_date, assignee, status)
-  values (brand, 'snapchat_story', 'Behind-the-counter day in Jeddah',
+  insert into calendar_entries (brand_id, format, title, target_date, assignee, status)
+  values (brand, 'story', 'Behind-the-counter day in Jeddah',
           current_date - 1, 'ammar', 'live')
   returning id into story_1;
+  insert into entry_publications (entry_id, platform, posted_at) values
+    (story_1, 'instagram', now()),
+    (story_1, 'snapchat', now());
 
-  insert into calendar_entries (brand_id, type, title, target_date, assignee, status)
+  insert into calendar_entries (brand_id, format, title, target_date, assignee, status)
   values (brand, 'general', 'Monthly content brief review',
           current_date + 2, 'both', 'planned')
   returning id into brief_1;
 
   -- A few more "done" entries to fill earlier days of the month
-  insert into calendar_entries (brand_id, type, title, target_date, assignee, status) values
-    (brand, 'tiktok_video',     'Influencer collab — @sweetyy', current_date - 8,  'junaid', 'done'),
-    (brand, 'instagram_story',  'Customer reaction reposts',    current_date - 4,  'ammar',  'done'),
-    (brand, 'tiktok_video',     'Top-3 candy ranking',          current_date - 11, 'junaid', 'done'),
-    (brand, 'instagram_reel',   'Family bundle unboxing',       current_date - 6,  'both',   'done'),
-    (brand, 'offer',            'Friday flash deal',            current_date + 5,  'junaid', 'planned');
+  declare
+    e_id uuid;
+  begin
+    -- Past video collab
+    insert into calendar_entries (brand_id, format, title, target_date, assignee, status)
+    values (brand, 'video', 'Influencer collab — @sweetyy', current_date - 8, 'junaid', 'done')
+    returning id into e_id;
+    insert into entry_publications (entry_id, platform, posted_at) values
+      (e_id, 'tiktok', now()), (e_id, 'instagram', now()), (e_id, 'snapchat', now());
+
+    -- Past story
+    insert into calendar_entries (brand_id, format, title, target_date, assignee, status)
+    values (brand, 'story', 'Customer reaction reposts', current_date - 4, 'ammar', 'done')
+    returning id into e_id;
+    insert into entry_publications (entry_id, platform, posted_at) values
+      (e_id, 'instagram', now());
+
+    -- Past video
+    insert into calendar_entries (brand_id, format, title, target_date, assignee, status)
+    values (brand, 'video', 'Top-3 candy ranking', current_date - 11, 'junaid', 'done')
+    returning id into e_id;
+    insert into entry_publications (entry_id, platform, posted_at) values
+      (e_id, 'tiktok', now()), (e_id, 'instagram', now()), (e_id, 'snapchat', now());
+
+    -- Past video — family bundle unboxing
+    insert into calendar_entries (brand_id, format, title, target_date, assignee, status)
+    values (brand, 'video', 'Family bundle unboxing', current_date - 6, 'both', 'done')
+    returning id into e_id;
+    insert into entry_publications (entry_id, platform, posted_at) values
+      (e_id, 'tiktok', now()), (e_id, 'instagram', now()), (e_id, 'snapchat', now());
+
+    -- Upcoming offer
+    insert into calendar_entries (brand_id, format, title, target_date, assignee, status)
+    values (brand, 'offer', 'Friday flash deal', current_date + 5, 'junaid', 'planned')
+    returning id into e_id;
+  end;
 
   -- =========================================================
   -- 4. Task chains for the standalone video / reel entries

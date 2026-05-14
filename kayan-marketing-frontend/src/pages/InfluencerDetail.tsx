@@ -35,7 +35,7 @@ import {
   INFLUENCER_SUBMISSION_STATUS_LABELS,
   type InfluencerSubmissionStatus,
 } from "../constants/influencer-submissions";
-import { ENTRY_TYPES } from "../constants/entry-types";
+import { CONTENT_FORMATS } from "../constants/content-formats";
 import { InfluencerFormModal } from "../features/influencers/InfluencerFormModal";
 import {
   useDeleteInfluencer,
@@ -706,7 +706,7 @@ function ActivityStatsTile({
       }
     }
     const totalCollabs = (entries.data ?? []).filter(
-      (e) => e.type === ENTRY_TYPES.INFLUENCER_COLLAB,
+      (e) => e.format === CONTENT_FORMATS.INFLUENCER_COLLAB,
     ).length;
     return {
       totalCollabs,
@@ -782,7 +782,7 @@ function CollaborationsTile({
 
   const collabs: CollabRow[] = useMemo(() => {
     const rows = (entries.data ?? []).filter(
-      (e) => e.type === ENTRY_TYPES.INFLUENCER_COLLAB,
+      (e) => e.format === CONTENT_FORMATS.INFLUENCER_COLLAB,
     );
     return rows.map((entry) => ({
       entry,

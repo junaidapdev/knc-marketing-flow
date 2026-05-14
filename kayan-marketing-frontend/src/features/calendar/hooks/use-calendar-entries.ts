@@ -4,9 +4,11 @@ import type { CalendarEntry } from "../../../types/calendar-entry";
 import type { Task } from "../../../types/task";
 import type { EntryStatus } from "../../../types/calendar-entry";
 import type { Assignee, PreviewTask } from "../../../constants/task-chains";
-import type { EntryType } from "../../../constants/entry-types";
+import type { ContentFormat } from "../../../constants/content-formats";
+import type { SocialPlatform } from "../../../constants/social-platform";
 import type { BudgetCategory } from "../../../constants/budget-categories";
 import type { PatternId } from "../../../constants/patterns";
+import type { EntryPublicationFull } from "../../../types/entry-publication";
 import { logger } from "../../../utils/logger";
 
 const ENTRIES_KEY = ["calendar-entries"] as const;
@@ -17,7 +19,7 @@ interface ListParams {
   to?: string;
   branchId?: string;
   influencerId?: string;
-  type?: EntryType;
+  format?: ContentFormat;
 }
 
 export function useCalendarEntries(params: ListParams) {
@@ -30,7 +32,7 @@ export function useCalendarEntries(params: ListParams) {
           to: params.to,
           branchId: params.branchId,
           influencerId: params.influencerId,
-          type: params.type,
+          format: params.format,
         },
       });
       if (!result.success) throw new Error(result.error.message);
@@ -58,7 +60,9 @@ export function useEntryDetail(entryId: string | null) {
 
 export interface CreateEntryInput {
   brandId: string;
-  type: EntryType;
+  format: ContentFormat;
+  // Required for video/story formats; empty array (or omitted) for others.
+  platforms?: SocialPlatform[];
   title: string;
   description?: string | null;
   targetDate: string;
@@ -75,8 +79,7 @@ export interface CreateEntryInput {
   productionMode?: "batch" | "adhoc";
   shootDate?: string | null;
   editorDaysOffset?: number;
-  // Recipe Book V2 tagging (chunk 4). Both optional. The AI Generate flow
-  // reads these on the saved entry and feeds them into the prompt brief.
+  // Recipe Book V2 tagging.
   patternId?: PatternId | null;
   theme?: string | null;
 }
@@ -84,6 +87,7 @@ export interface CreateEntryInput {
 export interface CreateEntryResult {
   entry: CalendarEntry;
   tasks: Task[];
+  publications: EntryPublicationFull[];
 }
 
 export function useCreateEntry() {
@@ -114,7 +118,8 @@ export interface UpdateEntryInput {
   budgetAllocated?: number;
   budgetSpent?: number;
   videoUrl?: string | null;
-  postUrl?: string | null;
+  // post_url is no longer on the entry — it lives on each publication. Use
+  // useUpdatePublication() to set per-platform URLs.
   notes?: string | null;
   branchId?: string | null;
   influencerId?: string | null;
@@ -125,8 +130,6 @@ export interface UpdateEntryInput {
   productionMode?: "batch" | "adhoc";
   shootDate?: string | null;
   editorDaysOffset?: number;
-  // Recipe Book V2 tagging (chunk 4). null clears the field; undefined
-  // leaves the existing DB value alone.
   patternId?: PatternId | null;
   theme?: string | null;
 }
@@ -161,6 +164,41 @@ export function useDeleteEntry() {
       queryClient.invalidateQueries({ queryKey: ENTRIES_KEY });
       queryClient.invalidateQueries({ queryKey: TASKS_KEY });
       logger.info("entry deleted", { entryId: id });
+    },
+  });
+}
+
+export interface UpdatePublicationInput {
+  postUrl?: string | null;
+  postedAt?: string | null;
+}
+
+// Patch a single publication (one platform's post_url / posted_at) without
+// disturbing the parent entry's status. Used by the entry detail panel
+// when the user pastes the live URL after publishing on a specific platform.
+export function useUpdatePublication() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: {
+      entryId: string;
+      platform: SocialPlatform;
+      input: UpdatePublicationInput;
+    }): Promise<EntryPublicationFull> => {
+      const result = await apiRequest<EntryPublicationFull>(
+        `/calendar-entries/${args.entryId}/publications/${args.platform}`,
+        {
+          method: "PATCH",
+          body: args.input,
+        },
+      );
+      if (!result.success) throw new Error(result.error.message);
+      return result.data;
+    },
+    onSuccess: (_data, args) => {
+      queryClient.invalidateQueries({ queryKey: ENTRIES_KEY });
+      queryClient.invalidateQueries({
+        queryKey: [...ENTRIES_KEY, "detail", args.entryId],
+      });
     },
   });
 }

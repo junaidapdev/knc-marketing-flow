@@ -1,4 +1,4 @@
-import type { EntryType } from "../constants/entry-types";
+import type { ContentFormat, Platform } from "../constants/entry-types";
 import type { BudgetCategory } from "../constants/budget-categories";
 import type { Assignee } from "../constants/task-chains";
 import type { PatternId } from "../constants/patterns";
@@ -12,12 +12,26 @@ export interface Attachment {
   type: string;
 }
 
+// Per-platform publication of a single entry. After migration 0050, post_url
+// moved off calendar_entries onto entry_publications so one shoot can post
+// to multiple platforms.
+export interface EntryPublication {
+  id: string;
+  platform: Platform;
+  postUrl: string | null;
+  postedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CalendarEntry {
   id: string;
   brandId: string;
   campaignId: string | null;
   branchId: string | null;
-  type: EntryType;
+  // What kind of content this entry represents (video, story, shop_activity, …).
+  // Replaces the old per-platform `type` field — see migration 0050.
+  format: ContentFormat;
   title: string;
   description: string | null;
   targetDate: string;
@@ -27,14 +41,11 @@ export interface CalendarEntry {
   budgetSpent: number;
   budgetCategory: BudgetCategory | null;
   videoUrl: string | null;
-  postUrl: string | null;
   attachments: Attachment[];
   notes: string | null;
   metadata: Record<string, unknown>;
   // Authoring fields (migration 0020).
   script: string | null;
-  // Production direction list (migration 0043) — separate field from
-  // script so the spoken talent copy stays clean.
   shotDirections: string | null;
   caption: string | null;
   hashtags: string | null;
@@ -49,4 +60,7 @@ export interface CalendarEntry {
   sourceTopicId: string | null;
   createdAt: string;
   updatedAt: string;
+  // Per-platform publications (migration 0050). Empty array for non-content
+  // formats (shop_activity, offer, influencer_collab, general).
+  publications: EntryPublication[];
 }
