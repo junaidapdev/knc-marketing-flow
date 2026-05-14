@@ -1549,11 +1549,16 @@ function ExpandedCardBody({
             type="button"
             onClick={onCopy}
             disabled={!draft.trim()}
-            className="flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink disabled:opacity-40 disabled:cursor-not-allowed px-1.5 py-1"
+            className={`flex items-center gap-1 text-[11px] disabled:opacity-40 disabled:cursor-not-allowed px-2 py-1 rounded-full transition-colors ${
+              copied
+                ? "bg-sage text-[#2C5530] font-semibold"
+                : "text-ink-3 hover:text-ink"
+            }`}
             aria-label={copied ? "Copied" : "Copy"}
+            aria-live="polite"
           >
-            <Copy size={11} />
-            <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
+            {copied ? <CheckIcon size={11} strokeWidth={3} /> : <Copy size={11} />}
+            <span>{copied ? "Copied" : "Copy"}</span>
           </button>
           {isAIEnabled && (
             <button
