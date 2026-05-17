@@ -1,7 +1,9 @@
-// Kayan Recipe Book V2 — the 9 winning Reel patterns derived from analyzing
-// 11 high-performing posts. Mirrors `voice_config.patterns` in the brand row
-// (seeded by migration 0028). Frontend mirror lives at
-// kayan-marketing-frontend/src/constants/patterns.ts — keep them in sync.
+// Kayan Recipe Book — Reel patterns derived from analyzing high-performing
+// posts. Mirrors `voice_config.patterns` in the brand row (seeded by
+// migration 0028; extended by migration 0053 with P10-P13). Frontend mirror
+// lives at kayan-marketing-frontend/src/constants/patterns.ts — keep them
+// in sync. Full pattern descriptions and tier classifications live in the
+// brand DNA markdown (editable in Settings → Brand DNA).
 
 export const PATTERNS = [
   { id: "P1", name: "Follower Supermarket Sweep" },
@@ -13,6 +15,10 @@ export const PATTERNS = [
   { id: "P7", name: "Event Prediction Giveaway" },
   { id: "P8", name: "Treasure Hunt Challenge" },
   { id: "P9", name: "Quality Objection Rebuttal" },
+  { id: "P10", name: "Visual Shock Prop" },
+  { id: "P11", name: "Executive Authority Flex" },
+  { id: "P12", name: "Pyrotechnic Reveal" },
+  { id: "P13", name: "DIY Problem-Solver" },
 ] as const;
 
 export type PatternId = (typeof PATTERNS)[number]["id"];

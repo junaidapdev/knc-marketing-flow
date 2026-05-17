@@ -294,7 +294,7 @@ Generate ${count} fresh topic ideas. Prioritize stale branches + stale patterns.
       "title_en": "<English plain summary, 5-12 words>",
       "description": "<Saudi-Arabic, 2-4 sentences explaining the angle, the products/setup, and the structure beats. Use prices placeholders [السعر القديم] / [السعر الجديد].>",
       "description_en": "<English plain summary, 2-4 sentences. Use [old price] / [new price] placeholders.>",
-      "pattern_id": "<one of P1-P9>",
+      "pattern_id": "<one of P1-P13>",
       "suggested_branch": "<exact branch name from voice config, or null if not branch-specific>",
       "theme": "<focus product or angle, 3-8 words, English or Arabic — internal label>",
       "occasion": "<one of: regular, ramadan, eid, national_day, mothers_day, fathers_day, back_to_school, summer, derby_weekend, riyadh_season>",
@@ -307,7 +307,7 @@ Generate ${count} fresh topic ideas. Prioritize stale branches + stale patterns.
 }
 
 Rules:
-- pattern_id MUST be one of the 9 patterns (P1–P9).
+- pattern_id MUST be one of the 13 patterns (P1–P13). See the BRAND DNA section above for what each pattern is — match the topic to the most fitting one.
 - suggested_branch MUST exactly match a branch name in voice config, or be null.
 - format defaults to "video" unless the topic clearly fits another shape.
 - default_platforms is required for video/story formats (one or more of tiktok/instagram/snapchat). Use [] for other formats.
