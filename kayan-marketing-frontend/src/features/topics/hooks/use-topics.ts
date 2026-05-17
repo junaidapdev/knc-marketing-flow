@@ -100,6 +100,25 @@ export function useArchiveTopic() {
   });
 }
 
+// Hard delete — removes the topic row. Safe: calendar_entries.source_topic_id
+// is ON DELETE SET NULL, so any spawned entry stays but loses its back-link.
+// Use this when "archived" is no longer enough and the topic should be gone.
+export function useDeleteTopic() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      const result = await apiRequest<null>(`/topics/${id}?hard=true`, {
+        method: "DELETE",
+      });
+      if (!result.success) throw new Error(result.error.message);
+    },
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: TOPICS_KEY });
+      logger.info("topic deleted", { topicId: id });
+    },
+  });
+}
+
 interface UseTopicResult {
   entry: CalendarEntry;
   tasks: Task[];

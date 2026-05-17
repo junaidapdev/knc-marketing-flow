@@ -1,5 +1,13 @@
 import { useMemo, useState } from "react";
-import { Sparkles, MapPin, Tag, Archive, ArrowRight, Loader2 } from "lucide-react";
+import {
+  Sparkles,
+  MapPin,
+  Tag,
+  Archive,
+  ArrowRight,
+  Loader2,
+  Trash2,
+} from "lucide-react";
 import { format } from "date-fns";
 import { PATTERN_BY_ID, type PatternId } from "../../constants/patterns";
 import {
@@ -29,7 +37,11 @@ interface Props {
   branch: Branch | undefined;
   onUse: (topic: Topic) => void;
   onArchive: (topic: Topic) => void;
+  // Hard delete — removes the topic from the DB. Wired separately from
+  // onArchive so the destructive action stays an explicit user choice.
+  onDelete: (topic: Topic) => void;
   isUsing: boolean;
+  isDeleting: boolean;
   // Display language for title + description. The card falls back to the
   // other language if the requested one is empty (older topics may only
   // have one language populated).
@@ -48,8 +60,18 @@ function pickLocalized(
   return null;
 }
 
-export function TopicCard({ topic, branch, onUse, onArchive, isUsing, language }: Props): JSX.Element {
+export function TopicCard({
+  topic,
+  branch,
+  onUse,
+  onArchive,
+  onDelete,
+  isUsing,
+  isDeleting,
+  language,
+}: Props): JSX.Element {
   const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const patternName = useMemo(() => {
     if (!topic.patternId) return null;
@@ -159,9 +181,55 @@ export function TopicCard({ topic, branch, onUse, onArchive, isUsing, language }
         </div>
       )}
 
-      {!isArchived && (
-        <footer className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-line">
-          {!confirmingArchive ? (
+      <footer className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-line">
+        {/* Delete (hard) — always available, on the left so it doesn't compete
+            with primary actions on the right. Two-step confirm to make the
+            destructive intent explicit. */}
+        <div className="mr-auto">
+          {!confirmingDelete ? (
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(true)}
+              disabled={isDeleting}
+              className="text-[12px] text-ink-3 hover:text-rose-deep px-2 py-1 inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-wait transition-colors"
+              title="Delete topic permanently"
+              aria-label="Delete topic"
+            >
+              {isDeleting ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Trash2 size={12} />
+              )}
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5 text-[12px]">
+              <span className="text-ink-3">Delete permanently?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmingDelete(false);
+                  onDelete(topic);
+                }}
+                className="px-2 py-0.5 rounded text-rose-deep bg-rose/40 hover:bg-rose/60 font-semibold"
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                className="px-2 py-0.5 rounded text-ink-2 hover:bg-cream-2"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Archive — soft delete, only for non-archived topics. Keeps the
+            row in the DB so any spawned calendar entry can still resolve
+            the back-link via source_topic_id. */}
+        {!isArchived &&
+          (!confirmingArchive ? (
             <button
               type="button"
               onClick={() => setConfirmingArchive(true)}
@@ -190,29 +258,29 @@ export function TopicCard({ topic, branch, onUse, onArchive, isUsing, language }
                 No
               </button>
             </div>
-          )}
-          {canUse && (
-            <button
-              type="button"
-              onClick={() => onUse(topic)}
-              disabled={isUsing}
-              className="btn btn-primary disabled:opacity-60 disabled:cursor-wait"
-            >
-              {isUsing ? (
-                <>
-                  <Loader2 size={13} className="animate-spin" />
-                  Creating…
-                </>
-              ) : (
-                <>
-                  Use this
-                  <ArrowRight size={13} />
-                </>
-              )}
-            </button>
-          )}
-        </footer>
-      )}
+          ))}
+
+        {canUse && (
+          <button
+            type="button"
+            onClick={() => onUse(topic)}
+            disabled={isUsing}
+            className="btn btn-primary disabled:opacity-60 disabled:cursor-wait"
+          >
+            {isUsing ? (
+              <>
+                <Loader2 size={13} className="animate-spin" />
+                Creating…
+              </>
+            ) : (
+              <>
+                Use this
+                <ArrowRight size={13} />
+              </>
+            )}
+          </button>
+        )}
+      </footer>
     </article>
   );
 }

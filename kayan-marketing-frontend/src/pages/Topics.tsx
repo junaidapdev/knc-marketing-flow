@@ -8,6 +8,7 @@ import {
   useTopics,
   useUseTopic,
   useArchiveTopic,
+  useDeleteTopic,
 } from "../features/topics/hooks/use-topics";
 import { TopicCard } from "../features/topics/TopicCard";
 import { SuggestTopicsModal } from "../features/topics/SuggestTopicsModal";
@@ -69,6 +70,9 @@ export default function TopicsPage(): JSX.Element {
   const [addOpen, setAddOpen] = useState(false);
   // Track which topic is mid-conversion so the spinner only shows on its card.
   const [usingTopicId, setUsingTopicId] = useState<string | null>(null);
+  // Same idea for the hard-delete action so the trash button can spin without
+  // affecting other cards in the grid.
+  const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const topics = useTopics({
@@ -78,6 +82,7 @@ export default function TopicsPage(): JSX.Element {
   const branches = useBranches(brandId);
   const useTopicMut = useUseTopic();
   const archive = useArchiveTopic();
+  const del = useDeleteTopic();
 
   // Pattern filter is applied client-side because the backend list endpoint
   // doesn't filter by pattern_id (and adding it now would mean a function
@@ -138,6 +143,20 @@ export default function TopicsPage(): JSX.Element {
       const message = err instanceof Error ? err.message : "Archive failed";
       setActionError(message);
       logger.error("archive topic failed", { err: String(err), topicId: topic.id });
+    }
+  };
+
+  const handleDelete = async (topic: Topic): Promise<void> => {
+    setActionError(null);
+    setDeletingTopicId(topic.id);
+    try {
+      await del.mutateAsync(topic.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Delete failed";
+      setActionError(message);
+      logger.error("delete topic failed", { err: String(err), topicId: topic.id });
+    } finally {
+      setDeletingTopicId(null);
     }
   };
 
@@ -303,7 +322,9 @@ export default function TopicsPage(): JSX.Element {
               branch={topic.branchId ? branchById.get(topic.branchId) : undefined}
               onUse={handleUse}
               onArchive={handleArchive}
+              onDelete={handleDelete}
               isUsing={usingTopicId === topic.id}
+              isDeleting={deletingTopicId === topic.id}
               language={language}
             />
           ))}

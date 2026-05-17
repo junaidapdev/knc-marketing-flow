@@ -328,8 +328,19 @@ Deno.serve(async (req) => {
     return jsonSuccess(toCamel(data));
   }
 
-  // ───── DELETE → soft delete (status='archived') ─────
+  // ───── DELETE → soft delete (status='archived') by default ─────
+  // Pass ?hard=true to actually remove the row. Hard delete is safe:
+  // calendar_entries.source_topic_id is ON DELETE SET NULL (migration 0031),
+  // so any entry spawned from this topic stays — it just loses the back-link.
   if (req.method === "DELETE" && topicId && !subAction) {
+    const isHardDelete = url.searchParams.get("hard") === "true";
+
+    if (isHardDelete) {
+      const { error } = await db.from("topics").delete().eq("id", topicId);
+      if (error) return jsonError("INTERNAL_ERROR", error.message, 500);
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
     const { data, error } = await db
       .from("topics")
       .update({ status: "archived" })
