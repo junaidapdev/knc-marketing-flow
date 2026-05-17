@@ -299,7 +299,7 @@ Generate ${count} fresh topic ideas. Prioritize stale branches + stale patterns.
       "theme": "<focus product or angle, 3-8 words, English or Arabic — internal label>",
       "occasion": "<one of: regular, ramadan, eid, national_day, mothers_day, fathers_day, back_to_school, summer, derby_weekend, riyadh_season>",
       "format": "<one of: video, story, shop_activity, influencer_collab, offer, general>",
-      "default_platforms": "<array — only when format is video or story. Pick from: tiktok, instagram, snapchat. Default to all three for videos.>",
+      "default_platforms": ["<one or more of: tiktok, instagram, snapchat — required for video/story, [] otherwise>"],
       "reasoning": "<one English sentence: why this combo, why now>"
     }
     // ... ${count} total
@@ -465,7 +465,11 @@ Deno.serve(async (req) => {
       model: openaiModel,
       // Newer OpenAI models (GPT-5 series, o-series) require
       // `max_completion_tokens` instead of the legacy `max_tokens`.
-      max_completion_tokens: 2000,
+      // 4000 leaves headroom for 5 fully bilingual items (Arabic + English
+      // title + description) plus the new format/default_platforms fields
+      // added after migration 0050. Truncation at 2000 was producing
+      // unparseable JSON.
+      max_completion_tokens: 4000,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
@@ -484,9 +488,18 @@ Deno.serve(async (req) => {
   const parsedRaw = safeParseAIResponse(raw);
 
   if (!parsedRaw || typeof parsedRaw !== "object") {
-    return jsonError("INTERNAL_ERROR", "AI returned non-JSON content.", 500, {
-      preview: raw.slice(0, 300),
-    });
+    // Surface the raw preview directly in the error message so the frontend
+    // toast carries enough info to diagnose without digging into Edge Function
+    // logs. The full raw response is still attached as `preview` in details.
+    const previewSnippet = raw.slice(0, 200).replace(/\s+/g, " ").trim();
+    return jsonError(
+      "INTERNAL_ERROR",
+      previewSnippet.length > 0
+        ? `AI returned non-JSON content. First 200 chars: ${previewSnippet}`
+        : "AI returned an empty response.",
+      500,
+      { preview: raw.slice(0, 600) },
+    );
   }
 
   // Accept either { items: [...] } or a bare array. The prompt asks for the
