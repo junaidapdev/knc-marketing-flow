@@ -68,6 +68,7 @@ import { isAIEnabled } from "../../config/env";
 import { RenderedMarkdown } from "./RenderedMarkdown";
 import { apiRequest } from "../../utils/api-client";
 import { parseAIResponse, hasParsedSections } from "../ai/parse-ai-response";
+import { ScriptRevisionPanel } from "./ScriptRevisionPanel";
 
 const STATUS_VALUES: EntryStatus[] = ["planned", "in_progress", "live", "done", "cancelled"];
 
@@ -1490,6 +1491,18 @@ function ExpandedCardBody({
     }
   };
 
+  const applyRevisedScript = async (revisedScript: string): Promise<void> => {
+    await updateEntry.mutateAsync({
+      id: entry.id,
+      input: { script: revisedScript },
+    });
+    setDraft(revisedScript);
+    lastSavedRef.current = revisedScript;
+    setEditing(false);
+    setSavedFlash(true);
+    window.setTimeout(() => setSavedFlash(false), 1500);
+  };
+
   // For Script + Caption: try to split into Arabic / English sections from
   // the `**Arabic**` / `**English**` markers our system prompt produces. If
   // markers aren't present, fall back to "Both".
@@ -1612,6 +1625,14 @@ function ExpandedCardBody({
 
       {(nearLimit(draft, field) || overLimit(draft, field)) && (
         <div className="text-[11px] text-ink-3 italic">{meta.limitHint}</div>
+      )}
+
+      {field === "script" && isAIEnabled && draft.trim().length > 0 && (
+        <ScriptRevisionPanel
+          entryId={entry.id}
+          currentScript={draft}
+          onApplyRevision={applyRevisedScript}
+        />
       )}
 
       {generateError && (

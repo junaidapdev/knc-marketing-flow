@@ -16,3 +16,4 @@ export * from "./influencer-languages";
 export * from "./portal";
 export * from "./influencer-submissions";
 export * from "./reports";
+export * from "./script-revision";

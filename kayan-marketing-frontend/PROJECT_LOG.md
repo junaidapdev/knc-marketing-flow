@@ -146,3 +146,9 @@ ever want to revive the implementation.
 
 ## Reports Module COMPLETE
 **Follow-up:** run the same PNG download smoke test on the deployed app in Safari iOS and Chrome Android after the `/reports/summary` Edge Function is deployed to the production Supabase project, because the local simulator service and in-app browser download manager were not available in this workspace.
+
+## Script Revision Feature (DONE)
+- Added Script-card-only revision UI inside `EntryDetailPanel`: creator notes textarea, quick-fix chips, Regenerate Script, preview panel, Apply Revised Script, Regenerate Again, and Cancel.
+- Revision flow is preview-first. Calling `POST /script-revisions` returns a revised script preview and stores revision history, but the existing script field is untouched until the user clicks Apply Revised Script.
+- Applying a revision updates only `calendar_entries.script` via the existing entry update mutation. Caption, hashtags, and shot directions are intentionally not regenerated in this chunk.
+- Added frontend script revision constants, type, React Query mutation hook, and Zod validation requiring either notes or quick-fix feedback before regeneration.

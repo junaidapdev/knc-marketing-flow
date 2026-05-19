@@ -8,3 +8,4 @@ export * from "./topic";
 export * from "./influencer";
 export * from "./influencer-submission";
 export * from "./report-summary";
+export * from "./script-revision";

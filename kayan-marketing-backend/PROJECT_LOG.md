@@ -123,3 +123,9 @@ revive the implementation.
 - Added a V1 in-memory per-instance report cache with 300s TTL; response meta includes `cached` and `cacheTtlSeconds`.
 - Maintenance fixes made while verifying Chunk 1: `src/validation/calendar-entry.ts` now derives update validation from the base object schema instead of calling `.partial()` on a `superRefine()` result, and `topics/use` now passes `p_influencer_id: null` to the re-signed `create_entry_with_tasks` RPC.
 - Follow-ups: replace the in-memory reports cache with Redis-equivalent/shared durable cache before production traffic; add a server-side image rendering path for scheduled reports.
+
+## Script Revision Feature (DONE)
+- Migration 0054 adds `script_revisions`: entry-linked revision history with previous script, creator notes, selected quick fixes, revised script preview, model, created_by, and created_at. RLS uses authenticated full access.
+- Added script revision constants, domain type, and Zod validation. Validation requires an existing current script plus either free-text notes or at least one quick-fix chip.
+- New authenticated Edge Function `script-revisions`: `POST /script-revisions` fetches the full calendar entry context server-side (entry facts, branch, campaign, publications, brand voice, Brand DNA), calls OpenAI with a revision-specific Saudi scriptwriting prompt, stores the generated preview in `script_revisions`, and returns only the revised script preview. It does not update `calendar_entries.script`.
+- Operational follow-up: apply migration 0054 and deploy `script-revisions` alongside `ai-assistant` when releasing this feature.

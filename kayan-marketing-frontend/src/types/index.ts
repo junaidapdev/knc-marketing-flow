@@ -13,3 +13,4 @@ export * from "./influencer";
 export * from "./portal";
 export * from "./influencer-submission";
 export * from "./report-summary";
+export * from "./script-revision";

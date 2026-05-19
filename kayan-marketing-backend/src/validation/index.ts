@@ -9,3 +9,4 @@ export * from "./influencer";
 export * from "./products";
 export * from "./influencer-submission";
 export * from "./report-summary";
+export * from "./script-revision";
