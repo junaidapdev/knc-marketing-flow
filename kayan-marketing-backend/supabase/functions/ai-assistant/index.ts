@@ -1,4 +1,7 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://esm.sh/zod@3.23.0";
 import { jsonError } from "../_shared/response.ts";
 import { corsHeaders } from "../_shared/cors.ts";
@@ -198,7 +201,7 @@ interface RelevantProduct {
   sourceTag: "hero" | "trending" | "theme";
 }
 
-type DbClient = ReturnType<typeof createClient>;
+type DbClient = SupabaseClient<Record<string, unknown>, "public">;
 
 interface MarketingEventRow {
   title: string;
@@ -464,7 +467,10 @@ Your role: a Saudi content creator scripting a short-form video for talent to re
 Your task: write a 15-60 second short-form video script.
 
 Script-section rules (## Script):
-- Saudi colloquial Arabic ONLY. No English in this section. No MSA. No bracketed shot direction.
+- Include exactly two language blocks inside ## Script: **Arabic** first, then **English**.
+- Arabic block: Saudi colloquial Arabic only. No MSA. No bracketed shot direction.
+- English block: faithful translation of the Arabic for team/director reference. Do not add new facts.
+- Both language blocks must keep the same clean Hook, Body, CTA structure.
 - Single narrator unless the pattern explicitly calls for two voices. Don't invent "Commentator 1 / Commentator 2" labels.
 - Spoken, conversational — what the talent actually says when holding the phone.
 - Open with a hook the talent says in voice (a question, a setup, a claim) — not a description of a shot.
@@ -481,7 +487,11 @@ Caption + hashtags rules:
 ${STRUCTURED_NOTE}
 
 ## Script
-[Saudi colloquial Arabic only. Hook → body → CTA, written as one flowing voiceover the talent reads to camera. No brackets, no English, no shot direction in this section.]
+**Arabic**
+[Saudi colloquial Arabic. Hook → Body → CTA, written as one flowing voiceover the talent reads to camera. No brackets, no English, no shot direction.]
+
+**English**
+[Faithful English translation of the Arabic script. Same Hook → Body → CTA structure. No new facts.]
 
 ## Shot directions
 [Bilingual short shot list. Each line: "<English imperative> — <Arabic imperative>". Under 10 lines.]

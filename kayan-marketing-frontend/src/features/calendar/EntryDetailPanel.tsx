@@ -1255,7 +1255,7 @@ const META_FOR_FIELD: Record<
     label: "Script",
     icon: <FileText size={14} />,
     placeholder:
-      "Spoken Saudi Arabic — what the talent reads to camera. Shot directions go in their own section below.",
+      "Spoken Saudi Arabic with English translation — what the talent reads to camera. Shot directions go below.",
     rows: 8,
     template: PROMPT_TEMPLATES.GENERATE_SCRIPT,
     buildPrompt: (entry) => {
@@ -1269,12 +1269,12 @@ const META_FOR_FIELD: Record<
         const branchBit = entry.branch?.name ? ` Feature ${entry.branch.name} in the CTA.` : "";
         return `Generate a ${patternName} script for: "${entry.title}".${themeBit}${branchBit}`;
       }
-      return `Generate a full TikTok-style script for this entry: "${entry.title}". Saudi Arabic, single narrator, conversational.`;
+      return `Generate a full TikTok-style script for this entry: "${entry.title}". Saudi Arabic first, English translation second, single narrator, conversational.`;
     },
     limitHint: "Most TikTok scripts work best under 4,000 chars.",
-    // Script is Saudi Arabic only now — language tabs hide naturally
-    // when the AI doesn't emit **Arabic** / **English** sub-headings.
-    supportsLangTabs: false,
+    // Generated scripts now carry **Arabic** and **English** blocks, so the
+    // same compact language tabs used for captions can reveal each version.
+    supportsLangTabs: true,
   },
   shotDirections: {
     label: "Shot directions",
@@ -1661,8 +1661,8 @@ function overLimit(text: string, field: ContentField): boolean {
 // strings when a marker isn't present so the UI can fall back to "Both".
 function splitByLanguage(text: string): { arabic: string; english: string } {
   // Use a non-greedy match for Arabic block, terminated by **English** or end.
-  const arRe = /\*\*\s*arabic\s*\*\*\s*([\s\S]*?)(?=\*\*\s*english\s*\*\*|$)/i;
-  const enRe = /\*\*\s*english\s*\*\*\s*([\s\S]*)$/i;
+  const arRe = /\*\*\s*arabic\s*:?\s*\*\*\s*([\s\S]*?)(?=\*\*\s*english\s*:?\s*\*\*|$)/i;
+  const enRe = /\*\*\s*english\s*:?\s*\*\*\s*([\s\S]*)$/i;
   const arabic = (text.match(arRe)?.[1] ?? "").trim();
   const english = (text.match(enRe)?.[1] ?? "").trim();
   return { arabic, english };

@@ -152,3 +152,7 @@ ever want to revive the implementation.
 - Revision flow is preview-first. Calling `POST /script-revisions` returns a revised script preview and stores revision history, but the existing script field is untouched until the user clicks Apply Revised Script.
 - Applying a revision updates only `calendar_entries.script` via the existing entry update mutation. Caption, hashtags, and shot directions are intentionally not regenerated in this chunk.
 - Added frontend script revision constants, type, React Query mutation hook, and Zod validation requiring either notes or quick-fix feedback before regeneration.
+
+## Script English Translation Toggle (DONE)
+- Enabled the Script card language tabs for generated bilingual scripts. When the script contains `**Arabic**` and `**English**` sections, the existing `Both / AR / EN` segmented control appears and switches the preview cleanly.
+- Updated the first-time script generation prompt copy to request Arabic first and English translation second. Existing Arabic-only scripts still display normally with no forced empty English tab.

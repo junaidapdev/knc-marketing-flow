@@ -129,3 +129,7 @@ revive the implementation.
 - Added script revision constants, domain type, and Zod validation. Validation requires an existing current script plus either free-text notes or at least one quick-fix chip.
 - New authenticated Edge Function `script-revisions`: `POST /script-revisions` fetches the full calendar entry context server-side (entry facts, branch, campaign, publications, brand voice, Brand DNA), calls OpenAI with a revision-specific Saudi scriptwriting prompt, stores the generated preview in `script_revisions`, and returns only the revised script preview. It does not update `calendar_entries.script`.
 - Operational follow-up: apply migration 0054 and deploy `script-revisions` alongside `ai-assistant` when releasing this feature.
+
+## Script English Translation Toggle (DONE)
+- Updated the `ai-assistant` generate_script prompt so the `## Script` section now returns `**Arabic**` first and `**English**` second. Arabic remains the spoken Saudi-dialect source; English is a faithful team/director translation with no extra facts.
+- Updated the `script-revisions` prompt to preserve the same bilingual script shape when creators regenerate a script, so applying a revision does not remove the English view.

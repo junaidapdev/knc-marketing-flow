@@ -244,8 +244,10 @@ ${quickFixLabels(quickFixes)}
 
 Hard rules:
 - Return ONLY the revised script text. No explanation, no caption, no hashtags.
-- Keep the format clean: Hook, Body, CTA.
-- Proper conversational Saudi Arabic only. No Egyptian, no Levantine, no stiff MSA.
+- Return exactly two language blocks: **Arabic** first, then **English**.
+- Keep both blocks in the same clean format: Hook, Body, CTA.
+- Arabic block: proper conversational Saudi Arabic only. No Egyptian, no Levantine, no stiff MSA.
+- English block: faithful translation of the revised Arabic for team/director reference. Do not add new facts.
 - Use natural Saudi phrasing like ابغاكم, خليني, يالله, تبغون, وش, ايش, خلنا نشوف, تابعوا, ماشاء الله, كفو, يا سلام when it fits.
 - Preserve product, campaign, price, offer, branch, and promo-code facts from the entry and current script.
 - Do not invent products, prices, offers, branches, or campaign claims.
