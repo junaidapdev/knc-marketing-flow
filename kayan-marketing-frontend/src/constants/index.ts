@@ -10,6 +10,7 @@ export * from "./social-platform";
 export * from "./ai";
 export * from "./patterns";
 export * from "./topics";
+export * from "./topic-generation";
 export * from "./influencer-status";
 export * from "./influencer-niche-tags";
 export * from "./influencer-languages";

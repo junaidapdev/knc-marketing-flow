@@ -156,3 +156,30 @@ ever want to revive the implementation.
 ## Script English Translation Toggle (DONE)
 - Enabled the Script card language tabs for generated bilingual scripts. When the script contains `**Arabic**` and `**English**` sections, the existing `Both / AR / EN` segmented control appears and switches the preview cleanly.
 - Updated the first-time script generation prompt copy to request Arabic first and English translation second. Existing Arabic-only scripts still display normally with no forced empty English tab.
+
+## Topic Generator V2 Plan (PLANNED)
+- Goal: make AI topic generation feel like a strategic Kayan content planner, not a repeated prompt output. The product should generate relevant variety across seasons, products, branches, audiences, formats, and experimental ideas.
+- Chunk 1: backend novelty foundation. Fix `regular` so it means no occasion bias, expand generator memory beyond queued topics, add normalized fingerprints, and prevent duplicate/near-duplicate saves before topics reach the queue.
+- Chunk 2: frontend generation modes and lanes. Upgrade the suggestion modal from count + occasion into a focused generator with modes like Balanced, Seasonal, Product Push, Branch Traffic, Premium Gifts, Funny/Challenge, and Experimental.
+- Chunk 3: quality pass and scoring. Add an AI critic pass that over-generates, scores, improves, and saves only the strongest ideas, then displays score/reasoning metadata to help creators trust the queue.
+
+## Topic Generator V2 Chunk 1: Memory + Novelty Guard (DONE)
+- Backend `topic-suggester` now understands `regular` as no occasion bias, uses queued/in-progress/used/archived topic memory, and sends grouped avoid context to the model.
+- Stale branch/pattern opportunities now account for active queued topics, reducing repeated suggestions for the same branch or recipe-book pattern before the team has used them.
+- Server-side near-duplicate filtering now runs before insert using normalized fingerprints and token overlap. The frontend hook type accepts duplicate skip metadata (`matchedTitle`, `matchedTheme`) while keeping the existing modal flow unchanged.
+- V2 follow-ups remain: Chunk 2 mode/lane UI and Chunk 3 critic/scoring.
+
+## Topic Generator V2 Chunk 2: Modes + Strategic Lanes (DONE)
+- Added shared topic generation constants for seven modes: Balanced, Seasonal, Product Push, Branch Traffic, Premium Gifts, Funny/Challenge, and Experimental. Each mode carries a label, description, backend instruction, and lane mix.
+- `SuggestTopicsModal` now lets the marketer choose a generation mode, keep occasion bias, and optionally add product focus, audience focus, and notes/direction while staying compact.
+- `useSuggestTopics` now sends the new optional fields and accepts duplicate skip metadata. Result feedback now says how many fresh ideas were saved and how many repeated ideas were skipped.
+- Backend stores mode/lane/business/novelty/production metadata into topic notes for V1. Remaining follow-up: Chunk 3 critic/scoring.
+
+## Topic Generator V2 Chunk 3: AI Critic + Save-the-Best (DONE)
+- Added shared score constants for brand fit, novelty, seasonal relevance, production ease, sales usefulness, and creator energy so frontend/backend metadata stays aligned.
+- The suggestion modal now understands the richer V2 response and shows the real quality flow: saved strong ideas, reviewed ideas, rejected weak/repeated ideas, and average score when available.
+- Topic cards now surface a compact "Score X/10" chip when V2 score metadata exists in the topic notes, keeping the queue readable without adding a full scoring dashboard.
+
+## Topic Generator V2 COMPLETE
+- Topic generation now has memory, duplicate protection, generation modes, strategic lanes, AI critic scoring, and save-the-best selection.
+- Follow-ups: store score metadata in dedicated columns if reporting is needed; add embeddings-based similarity if token overlap is not enough; learn from accepted vs archived ideas to tune future generation.

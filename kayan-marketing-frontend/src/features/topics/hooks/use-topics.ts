@@ -7,6 +7,7 @@ import type {
   UseTopicInput,
 } from "../../../types/topic";
 import type { TopicStatus } from "../../../constants/topics";
+import type { TopicGenerationMode } from "../../../constants/topic-generation";
 import type { CalendarEntry } from "../../../types/calendar-entry";
 import type { Task } from "../../../types/task";
 import { logger } from "../../../utils/logger";
@@ -152,7 +153,25 @@ interface SuggestResult {
   topics: Topic[];
   requested: number;
   generated: number;
-  skipped: Array<{ index: number; reason: string }>;
+  reviewed?: number;
+  saved?: number;
+  rejected?: number;
+  duplicatesSkipped?: number;
+  averageScore?: number | null;
+  scoreSummary?: {
+    brandFit: number;
+    novelty: number;
+    seasonalRelevance: number;
+    productionEase: number;
+    salesUsefulness: number;
+    creatorEnergy: number;
+  } | null;
+  skipped: Array<{
+    index: number;
+    reason: string;
+    matchedTitle?: string;
+    matchedTheme?: string;
+  }>;
   tokensUsed: number | null;
 }
 
@@ -160,6 +179,11 @@ interface SuggestInput {
   count?: number;
   occasion?: string;
   excludeRecentDays?: number;
+  mode?: TopicGenerationMode;
+  branchId?: string;
+  productFocus?: string;
+  audienceFocus?: string;
+  notes?: string;
 }
 
 export function useSuggestTopics() {

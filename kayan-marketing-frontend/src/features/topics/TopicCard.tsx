@@ -21,6 +21,7 @@ import {
   CONTENT_FORMATS_WITH_PLATFORMS,
   type ContentFormat,
 } from "../../constants/content-formats";
+import { TOPIC_SCORE_MAX, TOPIC_SCORE_MIN } from "../../constants/topic-generation";
 import { SOCIAL_PLATFORM_LABELS } from "../../constants/social-platform";
 import type { Branch } from "../../types/branch";
 import type { Topic } from "../../types/topic";
@@ -60,6 +61,15 @@ function pickLocalized(
   return null;
 }
 
+function extractQualityScore(notes: string | null): number | null {
+  const match = notes?.match(/Overall score:\s*([0-9]+(?:\.[0-9])?)/i);
+  if (!match) return null;
+  const score = Number(match[1]);
+  if (!Number.isFinite(score)) return null;
+  if (score < TOPIC_SCORE_MIN || score > TOPIC_SCORE_MAX) return null;
+  return Math.round(score * 10) / 10;
+}
+
 export function TopicCard({
   topic,
   branch,
@@ -77,6 +87,7 @@ export function TopicCard({
     if (!topic.patternId) return null;
     return PATTERN_BY_ID[topic.patternId as PatternId]?.name ?? topic.patternId;
   }, [topic.patternId]);
+  const qualityScore = useMemo(() => extractQualityScore(topic.notes), [topic.notes]);
 
   const isUsed = topic.status === "used";
   const isArchived = topic.status === "archived";
@@ -164,6 +175,15 @@ export function TopicCard({
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-lavender text-[#4A3A6A] flex items-center gap-1">
             <Tag size={10} />
             {topic.theme}
+          </span>
+        )}
+        {qualityScore !== null && (
+          <span
+            className="text-[11px] px-2 py-0.5 rounded-full bg-sage text-[#2C5530] flex items-center gap-1"
+            title="Topic Generator V2 quality score"
+          >
+            <Sparkles size={10} />
+            Score {qualityScore}/10
           </span>
         )}
       </div>

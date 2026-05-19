@@ -133,3 +133,34 @@ revive the implementation.
 ## Script English Translation Toggle (DONE)
 - Updated the `ai-assistant` generate_script prompt so the `## Script` section now returns `**Arabic**` first and `**English**` second. Arabic remains the spoken Saudi-dialect source; English is a faithful team/director translation with no extra facts.
 - Updated the `script-revisions` prompt to preserve the same bilingual script shape when creators regenerate a script, so applying a revision does not remove the English view.
+
+## Topic Generator V2 Plan (PLANNED)
+- Goal: replace flat topic generation with a strategy engine that produces varied, relevant Kayan ideas instead of repeating the same safe patterns.
+- Chunk 1: stronger memory and duplicate protection. Include queued, used, archived, and recent calendar ideas in the avoid list; treat `regular` as no occasion bias; account for queued topics in stale branch/pattern math; add normalized topic fingerprints and server-side near-duplicate filtering before insert.
+- Chunk 2: generation modes and strategic lanes. Add modes such as Balanced, Seasonal, Product Push, Branch Traffic, Premium Gifts, Funny/Challenge, and Experimental; force each batch across lanes like season, product, branch, audience, content format, business goal, and experiment.
+- Chunk 3: AI critic and scoring. Generate more raw ideas than requested, score for brand fit, novelty, seasonal relevance, production ease, sales usefulness, and creator energy, then save only the best ideas with score metadata for future learning.
+
+## Topic Generator V2 Chunk 1: Memory + Novelty Guard (DONE)
+- `topic-suggester` now treats `regular` as no occasion bias instead of telling the model to bias every idea toward "regular".
+- Expanded generation memory from queued-only topics to the newest queued, in-progress, used, and archived topics, plus recent calendar entries. The prompt now groups avoid memory into queued/in-progress, used, archived/rejected, recent calendar entries, and recent themes.
+- Stale branch/pattern calculations now consider queued/in-progress topics too, so regeneration stops repeatedly pushing branches or patterns that already have ideas waiting in the queue.
+- Added server-side normalized fingerprint and token-overlap duplicate filtering before insert. Near-duplicates are skipped with `reason: "near_duplicate"` and optional matched title/theme metadata, while valid fresh ideas still save normally.
+- V2 follow-ups remain: Chunk 2 generation modes/lanes and Chunk 3 AI critic/scoring.
+
+## Topic Generator V2 Chunk 2: Modes + Strategic Lanes (DONE)
+- Added shared topic generation mode/lane constants for Balanced, Seasonal, Product Push, Branch Traffic, Premium Gifts, Funny/Challenge, and Experimental, plus lane mixes for seasonal/product/branch/audience/format/offer/influencer/premium/challenge/experimental variety.
+- `topic-suggester` request schema now accepts `mode`, optional `branchId`, `productFocus`, `audienceFocus`, and free-text `notes`, while keeping old count/occasion-only calls working with `balanced` as the default mode.
+- The prompt now identifies the selected mode, includes explicit strategic lane requirements, and requires each AI item to return `lane`, `novelty_reason`, `business_goal`, and `production_notes` in addition to the existing topic fields.
+- V1 stores the new strategy metadata in `topics.notes` as a readable "Topic Generator V2" block instead of adding new columns.
+- Remaining follow-up: Chunk 3 AI critic/scoring to over-generate, rank, improve, and save only the strongest ideas.
+
+## Topic Generator V2 Chunk 3: AI Critic + Save-the-Best (DONE)
+- Added topic score constants for brand fit, novelty, seasonal relevance, production ease, sales usefulness, and creator energy, plus V2 quality thresholds for over-generation, critic attempts, and minimum save score.
+- `topic-suggester` now over-generates a raw pool, applies the existing duplicate guard, then sends surviving candidates through an AI critic pass before any insert happens.
+- The critic scores every candidate, decides save/revise/reject, improves promising but rough ideas, and the backend saves only the top-scored ideas up to the requested count. Weak filler is no longer saved just to hit the requested number.
+- Score/critic metadata is stored in `topics.notes` in the V2 block with lane, mode, business goal, novelty reason, dimension scores, overall score, and critic note.
+- The response remains backward compatible (`topics`, `requested`, `generated`, `skipped`, `tokensUsed`) and now also returns `reviewed`, `saved`, `rejected`, `duplicatesSkipped`, `averageScore`, and `scoreSummary`.
+
+## Topic Generator V2 COMPLETE
+- V2 now combines long memory, server-side near-duplicate protection, generation modes, strategic lanes, and a critic/scoring pass.
+- Follow-ups: store score metadata in dedicated columns if reporting is needed; add embeddings-based similarity if token overlap is not enough; learn from accepted vs archived ideas to tune future generation.
