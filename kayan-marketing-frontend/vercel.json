@@ -1,5 +1,21 @@
 {
+  "redirects": [
+    {
+      "source": "/((?!creator/.+).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "creators.knc.company"
+        }
+      ],
+      "destination": "https://knc.company/",
+      "permanent": false
+    }
+  ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
