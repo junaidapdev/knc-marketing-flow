@@ -183,3 +183,18 @@ ever want to revive the implementation.
 ## Topic Generator V2 COMPLETE
 - Topic generation now has memory, duplicate protection, generation modes, strategic lanes, AI critic scoring, and save-the-best selection.
 - Follow-ups: store score metadata in dedicated columns if reporting is needed; add embeddings-based similarity if token overlap is not enough; learn from accepted vs archived ideas to tune future generation.
+
+## Quick Book Popover — Chunk 1 (DONE)
+- New `QuickBookPopover` lets the influencer manager book an `influencer_collab` calendar entry directly from an InfluencerCard, without leaving the page. Anchored portal popover with a custom 1-month mini calendar (date-fns), navigable up to 90 days out, past-date dates disabled, today ringed in yellow, selection in obsidian/yellow.
+- Smart defaults: title → `"Collab with " + primaryName`, budget → `influencer.standardRate` (editable; required when null), shoot date → `target_date - brand.defaultSchedulingBuffer` (3 if missing), editor offset → `brand.defaultEditorOffset` (2 if missing), assignee → `junaid` (V1 hardcoded), category → `influencer`, autoCreateTasks → true so the backend computes the seeded influencer-collab task chain. Manual shoot-date edits stick (dirty flag) so the auto-sync doesn't fight the user.
+- Reuses `useCreateEntry` from `features/calendar/hooks/use-calendar-entries` — no new RPC, no backend changes.
+- New `UndoToast` (portal-mounted, 10s auto-dismiss, bottom-center) shows after a successful book: "Booked [Name] on [Date] · Undo". Undo calls `useDeleteEntry` on the new entry id and surfaces errors via logger. State lives at the Influencers page so only one toast can be active.
+- InfluencerCard gained a `CalendarDays` button between Copy and the View arrow. The button is the popover anchor (toggles open/closed) and adopts obsidian/yellow when active so users can spot which card has a popover open.
+- Two small utils ship alongside so the smart-defaults can't drift: `utils/display-name.ts` parses the `"English / Arabic"` `display_name` format, and `utils/quick-book-defaults.ts` builds the `create_entry_with_tasks` payload.
+- Edge cases handled: `standardRate` null → blank budget input with `(required)` hint; viewport-edge cards → popover clamps to 16px from either edge; window resize / scroll → popover re-positions; click-outside and Escape both close.
+
+## Quick Book — Chunks 2 + 3 reverted (2026-05-20)
+- Built and rolled back the same day after the V1 user confirmed Chunk 1 covers the actual workflow (monthly batch during salary week → just scroll, click 📅, pick a date, Book — no need for in-popover calendar context or a drag-drop strip).
+- Removed from the tree: `features/influencers/CalendarStrip.tsx`, `features/influencers/utils/suggest-slot.ts`. The popover lost its Chunk-2 layer (calendar dots, last-booked label, suggested ring, budget-impact line) and the InfluencerCard lost the drag handlers + touch-tap fallback. The page no longer renders a strip, no longer tracks `draggingInfluencer`, no longer renders the info-toast variant. `UndoToast.onUndo` is required again.
+- Decision recorded so future chunks don't reinvent: V1 only books monthly; suggestion intelligence and second entry-points (drag strip) are not needed until that cadence changes or a second influencer manager joins.
+- Pending in roadmap if/when friction shows up: bulk-book (multi-select + range distribution, Chunk 4) is the natural next step for a monthly batch workflow.

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Search, ShieldCheck } from "lucide-react";
+import { ChevronDown, Plus, Search, ShieldCheck } from "lucide-react";
 import { ROUTES } from "../constants/routes";
 import {
   INFLUENCER_NICHE_TAGS,
@@ -12,18 +12,37 @@ import {
   INFLUENCER_STATUS_LABELS,
   type InfluencerStatus,
 } from "../constants/influencer-status";
+import {
+  classifyTier,
+  highestFollowerCount,
+} from "../constants/influencer-tiers";
+import {
+  INFLUENCER_PLATFORMS,
+  INFLUENCER_PLATFORM_LABELS,
+  hasPlatform,
+  type InfluencerPlatform,
+} from "../constants/influencer-platforms";
 import { InfluencerFormModal } from "../features/influencers/InfluencerFormModal";
+import { InfluencerCard } from "../features/influencers/InfluencerCard";
+import { UndoToast } from "../features/influencers/UndoToast";
 import { useInfluencersWithReliability } from "../features/influencers/hooks/use-influencers";
+import { useDeleteEntry } from "../features/calendar/hooks/use-calendar-entries";
+import { logger } from "../utils/logger";
+import {
+  InstagramIcon,
+  SnapchatIcon,
+  TikTokIcon,
+} from "../features/influencers/icons";
 import type {
-  Influencer,
   InfluencerReliability,
   InfluencerWithReliability,
 } from "../types/influencer";
 
-const STATUS_FILTERS: ReadonlyArray<{
-  key: "all" | InfluencerStatus;
-  label: string;
-}> = [
+type StatusKey = "all" | InfluencerStatus;
+type TierKey = "all" | "macro" | "mid" | "micro";
+type ReliabilityFilter = "all" | "high" | "needs-review";
+
+const STATUS_FILTERS: ReadonlyArray<{ key: StatusKey; label: string }> = [
   { key: "all", label: "All" },
   { key: INFLUENCER_STATUS.ACTIVE, label: INFLUENCER_STATUS_LABELS.active },
   { key: INFLUENCER_STATUS.PAUSED, label: INFLUENCER_STATUS_LABELS.paused },
@@ -33,64 +52,25 @@ const STATUS_FILTERS: ReadonlyArray<{
   },
 ];
 
-const FOLLOWER_TIERS: ReadonlyArray<{ label: string; min: number }> = [
-  { label: "Macro", min: 500_000 },
-  { label: "Mid", min: 100_000 },
-  { label: "Micro", min: 10_000 },
-  { label: "Nano", min: 1 },
+// Tier filter chips — match the design's 3 buckets (Macro / Mid / Micro)
+// plus "All". Nano creators (<10K) still get classified by the card's
+// tier badge, they just aren't a filter target. If that changes,
+// extend this list and the TierKey union above.
+const TIER_FILTERS: ReadonlyArray<{
+  key: TierKey;
+  label: string;
+  dotClass: string | null;
+  activeBg: string;
+}> = [
+  { key: "all", label: "All", dotClass: null, activeBg: "bg-cream-2" },
+  { key: "macro", label: "Macro", dotClass: "bg-lavender-deep", activeBg: "bg-lavender" },
+  { key: "mid", label: "Mid", dotClass: "bg-[#D4A82A]", activeBg: "bg-butter" },
+  { key: "micro", label: "Micro", dotClass: "bg-sage-deep", activeBg: "bg-sage" },
 ];
 
-function statusChipClass(status: InfluencerStatus): string {
-  switch (status) {
-    case INFLUENCER_STATUS.ACTIVE:
-      return "status-active";
-    case INFLUENCER_STATUS.PAUSED:
-      return "status-planned";
-    case INFLUENCER_STATUS.BLACKLISTED:
-      return "status-overdue";
-    default:
-      return "status-planned";
-  }
-}
-
-function highestFollowerCount(influencer: Influencer): number {
-  return Math.max(
-    influencer.tiktokFollowers ?? 0,
-    influencer.instagramFollowers ?? 0,
-    influencer.snapchatFollowers ?? 0,
-  );
-}
-
-function followerTier(influencer: Influencer): string {
-  const count = highestFollowerCount(influencer);
-  const tier = FOLLOWER_TIERS.find((item) => count >= item.min);
-  return tier?.label ?? "Unlisted";
-}
-
-function platformChips(influencer: Influencer): JSX.Element {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {influencer.tiktokHandle && (
-        <span className="chip chip-tiktok">TikTok</span>
-      )}
-      {influencer.instagramHandle && (
-        <span className="chip chip-ig">Instagram</span>
-      )}
-      {influencer.snapchatHandle && (
-        <span className="chip chip-snap">Snapchat</span>
-      )}
-    </div>
-  );
-}
-
-function formatRate(rate: number | null): string {
-  if (rate === null) return "Not set";
-  return `${rate.toLocaleString()} SAR`;
-}
-
 // Composite reliability indicator: min of the three rates, or null if
-// any rate is null OR the score isn't available yet. Drives both the
-// table column color and the high-reliability / needs-review filters.
+// any rate is null OR the score isn't available yet. Drives the
+// high-reliability / needs-review filter buckets.
 function compositeReliability(rel: InfluencerReliability | null): number | null {
   if (!rel) return null;
   if (rel.postRate === null || rel.tagRate === null || rel.onTimeRate === null) {
@@ -99,55 +79,100 @@ function compositeReliability(rel: InfluencerReliability | null): number | null 
   return Math.min(rel.postRate, rel.tagRate, rel.onTimeRate);
 }
 
-type ReliabilityFilter = "all" | "high" | "needs-review";
-
 export default function InfluencersPage(): JSX.Element {
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
-  const [status, setStatus] = useState<"all" | InfluencerStatus>("all");
+  const [status, setStatus] = useState<StatusKey>("all");
+  const [tier, setTier] = useState<TierKey>("all");
+  const [platforms, setPlatforms] = useState<InfluencerPlatform[]>([]);
   const [query, setQuery] = useState("");
   const [niche, setNiche] = useState<"all" | InfluencerNicheTag>("all");
   const [reliabilityFilter, setReliabilityFilter] =
     useState<ReliabilityFilter>("all");
+  const [undoToast, setUndoToast] = useState<{
+    entryId: string;
+    message: string;
+  } | null>(null);
+  const deleteEntry = useDeleteEntry();
 
-  const filters = useMemo(
+  // Server-side filters: search + niche only. Status moved client-side
+  // so the tab counts can partition by status without an extra fetch.
+  const serverFilters = useMemo(
     () => ({
-      status: status === "all" ? undefined : status,
       q: query.trim() || undefined,
       niche: niche === "all" ? undefined : niche,
     }),
-    [status, query, niche],
+    [query, niche],
   );
-  const influencers = useInfluencersWithReliability(filters);
+  const influencers = useInfluencersWithReliability(serverFilters);
 
-  // Reliability is filtered client-side because it lives in a derived
-  // JSONB attached to each row, not as a direct DB column. With ≤200
-  // influencers this is fast; if the database grows, add a SQL view.
-  const filteredRows = useMemo<InfluencerWithReliability[]>(() => {
+  // After tier + platform are applied, but before status — this set
+  // is what the status tab counts partition.
+  const tierPlatformFiltered = useMemo<InfluencerWithReliability[]>(() => {
     const rows = influencers.data ?? [];
-    if (reliabilityFilter === "all") return rows;
     return rows.filter((row) => {
-      const rel = row.reliability;
-      const composite = compositeReliability(rel);
-      if (reliabilityFilter === "high") {
-        // All three rates ≥ 80
-        return (
-          rel !== null &&
-          rel.postRate !== null && rel.postRate >= 80 &&
-          rel.tagRate !== null && rel.tagRate >= 80 &&
-          rel.onTimeRate !== null && rel.onTimeRate >= 80
-        );
+      if (tier !== "all") {
+        const rowTier = classifyTier(highestFollowerCount(row));
+        if (rowTier !== tier) return false;
       }
-      // needs-review: any rate < 50, OR no reliability score available yet
-      // (no eligible collabs / no submissions).
-      if (composite === null) return true;
-      return (
-        (rel?.postRate !== null && (rel?.postRate ?? 100) < 50) ||
-        (rel?.tagRate !== null && (rel?.tagRate ?? 100) < 50) ||
-        (rel?.onTimeRate !== null && (rel?.onTimeRate ?? 100) < 50)
-      );
+      if (platforms.length > 0) {
+        const hit = platforms.some((p) => hasPlatform(row, p));
+        if (!hit) return false;
+      }
+      return true;
     });
-  }, [influencers.data, reliabilityFilter]);
+  }, [influencers.data, tier, platforms]);
+
+  // Partition counts for the status tabs. "All" = current
+  // tier+platform+search+niche set; per-status keys partition that.
+  const statusCounts = useMemo(() => {
+    const counts: Record<StatusKey, number> = {
+      all: tierPlatformFiltered.length,
+      active: 0,
+      paused: 0,
+      blacklisted: 0,
+    };
+    for (const row of tierPlatformFiltered) {
+      counts[row.status] += 1;
+    }
+    return counts;
+  }, [tierPlatformFiltered]);
+
+  // Final list: apply status + reliability on top of tier+platform.
+  const filteredRows = useMemo<InfluencerWithReliability[]>(() => {
+    let rows = tierPlatformFiltered;
+    if (status !== "all") {
+      rows = rows.filter((r) => r.status === status);
+    }
+    if (reliabilityFilter !== "all") {
+      rows = rows.filter((row) => {
+        const rel = row.reliability;
+        const composite = compositeReliability(rel);
+        if (reliabilityFilter === "high") {
+          return (
+            rel !== null &&
+            rel.postRate !== null && rel.postRate >= 80 &&
+            rel.tagRate !== null && rel.tagRate >= 80 &&
+            rel.onTimeRate !== null && rel.onTimeRate >= 80
+          );
+        }
+        // needs-review: any rate < 50, OR no score yet
+        if (composite === null) return true;
+        return (
+          (rel?.postRate !== null && (rel?.postRate ?? 100) < 50) ||
+          (rel?.tagRate !== null && (rel?.tagRate ?? 100) < 50) ||
+          (rel?.onTimeRate !== null && (rel?.onTimeRate ?? 100) < 50)
+        );
+      });
+    }
+    return rows;
+  }, [tierPlatformFiltered, status, reliabilityFilter]);
+
+  const togglePlatform = (p: InfluencerPlatform): void => {
+    setPlatforms((prev) =>
+      prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p],
+    );
+  };
 
   return (
     <div className="px-4 md:px-9 pt-5 md:pt-8 pb-12">
@@ -179,21 +204,62 @@ export default function InfluencersPage(): JSX.Element {
       </header>
 
       <section className="card mb-5 space-y-4">
-        <div className="overflow-x-auto -mx-1 px-1">
-          <div className="tab-group inline-flex">
-            {STATUS_FILTERS.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => setStatus(item.key)}
-                className={`tab ${status === item.key ? "tab-active" : ""}`}
-              >
-                {item.label}
-              </button>
-            ))}
+        {/* Row 1: status tabs with counts · tier filter */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="tab-group inline-flex overflow-x-auto max-w-full">
+            {STATUS_FILTERS.map((item) => {
+              const isActive = status === item.key;
+              const count = statusCounts[item.key];
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => setStatus(item.key)}
+                  className={`tab inline-flex items-center gap-1.5 ${
+                    isActive ? "tab-active" : ""
+                  }`}
+                >
+                  <span>{item.label}</span>
+                  <span
+                    className={`min-w-[20px] text-center px-1.5 py-px rounded text-[10px] font-bold tabular-nums ${
+                      isActive
+                        ? "bg-white/15 text-yellow"
+                        : "bg-cream text-ink-3"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="inline-flex items-center gap-1 flex-wrap">
+            {TIER_FILTERS.map((item) => {
+              const isActive = tier === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setTier(item.key)}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition ${
+                    isActive
+                      ? `${item.activeBg} text-ink`
+                      : "text-ink-2 hover:bg-cream-2"
+                  }`}
+                  aria-pressed={isActive}
+                >
+                  {item.dotClass && (
+                    <span className={`w-2 h-2 rounded-full ${item.dotClass}`} />
+                  )}
+                  {item.label}
+                </button>
+              );
+            })}
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-3">
-          <label className="relative block">
+
+        {/* Row 2: search · niche · platform */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="relative flex-1 min-w-[200px] block">
             <span className="sr-only">Search influencers</span>
             <Search
               size={14}
@@ -206,27 +272,59 @@ export default function InfluencersPage(): JSX.Element {
               placeholder="Search name, WhatsApp, or handle"
             />
           </label>
-          <label>
-            <span className="sr-only">Filter by niche</span>
-            <select
-              value={niche}
-              onChange={(event) =>
-                setNiche(event.target.value as "all" | InfluencerNicheTag)
-              }
-              className="form-select"
-            >
-              <option value="all">All niches</option>
-              {INFLUENCER_NICHE_TAGS.map((tag) => (
-                <option key={tag} value={tag}>
-                  {INFLUENCER_NICHE_TAG_LABELS[tag]}
-                </option>
-              ))}
-            </select>
-          </label>
+
+          <div className="flex items-center gap-2">
+            <span className="eyebrow">Niche</span>
+            <div className="relative inline-block">
+              <select
+                value={niche}
+                onChange={(event) =>
+                  setNiche(event.target.value as "all" | InfluencerNicheTag)
+                }
+                className="appearance-none bg-cream-2 hover:bg-yellow-soft rounded-full pl-3 pr-8 py-1.5 text-[12px] font-semibold text-ink cursor-pointer border-0 focus:outline-none focus:ring-2 focus:ring-yellow"
+                aria-label="Filter by niche"
+              >
+                <option value="all">All niches</option>
+                {INFLUENCER_NICHE_TAGS.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {INFLUENCER_NICHE_TAG_LABELS[tag]}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={14}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-ink-3"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="eyebrow">Platform</span>
+            {INFLUENCER_PLATFORMS.map((p) => {
+              const isSelected = platforms.includes(p);
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => togglePlatform(p)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold transition border ${
+                    isSelected
+                      ? "bg-obsidian text-yellow border-obsidian"
+                      : "bg-transparent text-ink-2 border-line-2 hover:bg-cream-2"
+                  }`}
+                  aria-pressed={isSelected}
+                >
+                  {p === "tiktok" && <TikTokIcon className="w-3 h-3" />}
+                  {p === "instagram" && <InstagramIcon className="w-3 h-3" />}
+                  {p === "snapchat" && <SnapchatIcon className="w-3 h-3" />}
+                  {INFLUENCER_PLATFORM_LABELS[p]}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        {/* Reliability quick-filter — chip row below the search bar.
-            All-three-rates-≥80 is the high bar; any-rate-<50 OR no
-            score yet is the needs-review bucket. */}
+
+        {/* Row 3: reliability quick-filter (kept from previous design) */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="eyebrow mr-1">Reliability:</span>
           {(
@@ -277,128 +375,16 @@ export default function InfluencersPage(): JSX.Element {
       )}
 
       {influencers.data && filteredRows.length > 0 && (
-        <>
-          <div className="hidden lg:block card p-0 overflow-hidden">
-            <table className="w-full text-[13px]">
-              <thead className="bg-cream-2/50 text-left">
-                <tr>
-                  <th className="px-4 py-3 eyebrow">Name</th>
-                  <th className="px-4 py-3 eyebrow">WhatsApp</th>
-                  <th className="px-4 py-3 eyebrow">Platforms</th>
-                  <th className="px-4 py-3 eyebrow">Tier</th>
-                  <th className="px-4 py-3 eyebrow">Status</th>
-                  <th className="px-4 py-3 eyebrow">Reliability</th>
-                  <th className="px-4 py-3 eyebrow">Niches</th>
-                  <th className="px-4 py-3 eyebrow text-right">Rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRows.map((influencer) => (
-                  <tr
-                    key={influencer.id}
-                    onClick={() =>
-                      navigate(ROUTES.INFLUENCER_DETAIL(influencer.id))
-                    }
-                    className="cursor-pointer border-t border-line hover:bg-cream-2/30"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-ink">
-                        {influencer.displayName}
-                      </div>
-                      {influencer.city && (
-                        <div className="text-[11.5px] text-ink-3 mt-0.5">
-                          {influencer.city}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-ink-2">
-                      {influencer.whatsapp}
-                    </td>
-                    <td className="px-4 py-3">{platformChips(influencer)}</td>
-                    <td className="px-4 py-3 text-ink-2">
-                      <span className="font-semibold text-ink">
-                        {followerTier(influencer)}
-                      </span>
-                      <div className="text-[11.5px] text-ink-3">
-                        {highestFollowerCount(influencer).toLocaleString()}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`chip ${statusChipClass(influencer.status)}`}
-                      >
-                        {INFLUENCER_STATUS_LABELS[influencer.status]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <ReliabilityCell reliability={influencer.reliability} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1.5">
-                        {influencer.nicheTags.slice(0, 3).map((tag) => (
-                          <span key={tag} className="chip chip-default">
-                            {INFLUENCER_NICHE_TAG_LABELS[tag]}
-                          </span>
-                        ))}
-                        {influencer.nicheTags.length > 3 && (
-                          <span className="chip chip-default">
-                            +{influencer.nicheTags.length - 3}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right text-ink-2">
-                      {formatRate(influencer.standardRate)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="lg:hidden flex flex-col gap-3">
-            {filteredRows.map((influencer) => (
-              <button
-                key={influencer.id}
-                onClick={() =>
-                  navigate(ROUTES.INFLUENCER_DETAIL(influencer.id))
-                }
-                className="card text-left p-4 hover:bg-cream-2/30 transition"
-              >
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-ink text-[14px] truncate">
-                      {influencer.displayName}
-                    </div>
-                    <div className="text-[12px] text-ink-3 mt-0.5">
-                      {influencer.whatsapp}
-                    </div>
-                  </div>
-                  <span
-                    className={`chip ${statusChipClass(influencer.status)} flex-shrink-0`}
-                  >
-                    {INFLUENCER_STATUS_LABELS[influencer.status]}
-                  </span>
-                </div>
-                <div className="mb-2">{platformChips(influencer)}</div>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {influencer.nicheTags.map((tag) => (
-                    <span key={tag} className="chip chip-default">
-                      {INFLUENCER_NICHE_TAG_LABELS[tag]}
-                    </span>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between text-[12px] text-ink-2">
-                  <span>
-                    {followerTier(influencer)} ·{" "}
-                    {highestFollowerCount(influencer).toLocaleString()}
-                  </span>
-                  <span>{formatRate(influencer.standardRate)}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 md:gap-4">
+          {filteredRows.map((influencer) => (
+            <InfluencerCard
+              key={influencer.id}
+              influencer={influencer}
+              onView={() => navigate(ROUTES.INFLUENCER_DETAIL(influencer.id))}
+              onBooked={(args) => setUndoToast(args)}
+            />
+          ))}
+        </div>
       )}
 
       <InfluencerFormModal
@@ -406,42 +392,28 @@ export default function InfluencersPage(): JSX.Element {
         onClose={() => setCreating(false)}
         editing={null}
       />
-    </div>
-  );
-}
 
-// Small composite reliability indicator for the list — shows the worst
-// of the three rates so the list highlights the weakest link. Color-
-// coded: ≥80 sage, ≥50 yellow, else rose. Renders "—" when the score
-// isn't computable yet (no eligible collabs / submissions).
-function ReliabilityCell({
-  reliability,
-}: {
-  reliability: InfluencerReliability | null;
-}): JSX.Element {
-  const composite = compositeReliability(reliability);
-  if (composite === null) {
-    return (
-      <span className="text-[11.5px] text-ink-3 italic" title="Reliability requires 3+ collabs with submissions">
-        —
-      </span>
-    );
-  }
-  const chipClass =
-    composite >= 80
-      ? "bg-sage text-[#2C5530]"
-      : composite >= 50
-        ? "bg-yellow text-obsidian"
-        : "bg-rose text-[#6E2A35]";
-  const title = reliability
-    ? `Post ${reliability.postRate ?? "—"}% · Tag ${reliability.tagRate ?? "—"}% · On-time ${reliability.onTimeRate ?? "—"}%`
-    : "";
-  return (
-    <span
-      className={`chip ${chipClass} font-semibold !text-[11px] tabular-nums`}
-      title={title}
-    >
-      {composite}%
-    </span>
+      {undoToast && (
+        <UndoToast
+          message={undoToast.message}
+          onUndo={() => {
+            const { entryId } = undoToast;
+            deleteEntry.mutate(entryId, {
+              onSuccess: () => {
+                logger.info("quick-book undone", { entryId });
+                setUndoToast(null);
+              },
+              onError: (err) => {
+                logger.error("quick-book undo failed", {
+                  err: err instanceof Error ? err.message : String(err),
+                });
+                setUndoToast(null);
+              },
+            });
+          }}
+          onDismiss={() => setUndoToast(null)}
+        />
+      )}
+    </div>
   );
 }
