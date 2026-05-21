@@ -22,6 +22,10 @@ import {
   hasPlatform,
   type InfluencerPlatform,
 } from "../constants/influencer-platforms";
+import {
+  cityBuckets,
+  type InfluencerCity,
+} from "../constants/influencer-cities";
 import { InfluencerFormModal } from "../features/influencers/InfluencerFormModal";
 import { InfluencerCard } from "../features/influencers/InfluencerCard";
 import { InfluencerDetailPanel } from "../features/influencers/InfluencerDetailPanel";
@@ -41,7 +45,20 @@ import type {
 
 type StatusKey = "all" | InfluencerStatus;
 type TierKey = "all" | "macro" | "mid" | "micro";
+type CityKey = "all" | InfluencerCity;
 type ReliabilityFilter = "all" | "high" | "needs-review";
+
+// Location filter — the three main Kayan cities plus the two outliers
+// present in the data (Riyadh, Taif). Matching is keyword-based, so
+// Arabic spelling variants all collapse onto these.
+const CITY_FILTERS: ReadonlyArray<{ key: CityKey; label: string }> = [
+  { key: "all", label: "All" },
+  { key: "makkah", label: "Makkah" },
+  { key: "jeddah", label: "Jeddah" },
+  { key: "madinah", label: "Madinah" },
+  { key: "riyadh", label: "Riyadh" },
+  { key: "taif", label: "Taif" },
+];
 
 const STATUS_FILTERS: ReadonlyArray<{ key: StatusKey; label: string }> = [
   { key: "all", label: "All" },
@@ -85,6 +102,7 @@ export default function InfluencersPage(): JSX.Element {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusKey>("all");
   const [tier, setTier] = useState<TierKey>("all");
+  const [city, setCity] = useState<CityKey>("all");
   const [platforms, setPlatforms] = useState<InfluencerPlatform[]>([]);
   const [query, setQuery] = useState("");
   const [niche, setNiche] = useState<"all" | InfluencerNicheTag>("all");
@@ -124,24 +142,50 @@ export default function InfluencersPage(): JSX.Element {
     });
   }, [influencers.data, tier, platforms]);
 
-  // Partition counts for the status tabs. "All" = current
-  // tier+platform+search+niche set; per-status keys partition that.
-  const statusCounts = useMemo(() => {
-    const counts: Record<StatusKey, number> = {
+  // City counts — partition the tier+platform set by canonical city. A
+  // creator who lists two cities counts under each, so these can sum to
+  // more than the "all" total.
+  const cityCounts = useMemo(() => {
+    const counts: Record<CityKey, number> = {
       all: tierPlatformFiltered.length,
-      active: 0,
-      paused: 0,
-      blacklisted: 0,
+      makkah: 0,
+      jeddah: 0,
+      madinah: 0,
+      riyadh: 0,
+      taif: 0,
     };
     for (const row of tierPlatformFiltered) {
-      counts[row.status] += 1;
+      for (const bucket of cityBuckets(row.city)) counts[bucket] += 1;
     }
     return counts;
   }, [tierPlatformFiltered]);
 
-  // Final list: apply status + reliability on top of tier+platform.
+  // Apply the city filter on top of tier+platform.
+  const cityFiltered = useMemo<InfluencerWithReliability[]>(() => {
+    if (city === "all") return tierPlatformFiltered;
+    return tierPlatformFiltered.filter((row) =>
+      cityBuckets(row.city).includes(city),
+    );
+  }, [tierPlatformFiltered, city]);
+
+  // Partition counts for the status tabs — over the city-filtered set so
+  // the tab counts react to the active location.
+  const statusCounts = useMemo(() => {
+    const counts: Record<StatusKey, number> = {
+      all: cityFiltered.length,
+      active: 0,
+      paused: 0,
+      blacklisted: 0,
+    };
+    for (const row of cityFiltered) {
+      counts[row.status] += 1;
+    }
+    return counts;
+  }, [cityFiltered]);
+
+  // Final list: apply status + reliability on top of tier+platform+city.
   const filteredRows = useMemo<InfluencerWithReliability[]>(() => {
-    let rows = tierPlatformFiltered;
+    let rows = cityFiltered;
     if (status !== "all") {
       rows = rows.filter((r) => r.status === status);
     }
@@ -167,7 +211,7 @@ export default function InfluencersPage(): JSX.Element {
       });
     }
     return rows;
-  }, [tierPlatformFiltered, status, reliabilityFilter]);
+  }, [cityFiltered, status, reliabilityFilter]);
 
   const togglePlatform = (p: InfluencerPlatform): void => {
     setPlatforms((prev) =>
@@ -325,7 +369,38 @@ export default function InfluencersPage(): JSX.Element {
           </div>
         </div>
 
-        {/* Row 3: reliability quick-filter (kept from previous design) */}
+        {/* Row 3: location filter */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="eyebrow mr-1">Location:</span>
+          {CITY_FILTERS.map((item) => {
+            const isActive = city === item.key;
+            const count = cityCounts[item.key];
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setCity(item.key)}
+                className={`chip inline-flex items-center gap-1.5 ${
+                  isActive
+                    ? "bg-obsidian text-yellow"
+                    : "chip-default hover:brightness-95"
+                }`}
+                aria-pressed={isActive}
+              >
+                {item.label}
+                <span
+                  className={`text-[10px] font-bold tabular-nums ${
+                    isActive ? "text-yellow/80" : "text-ink-3"
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Row 4: reliability quick-filter (kept from previous design) */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="eyebrow mr-1">Reliability:</span>
           {(

@@ -223,3 +223,10 @@ ever want to revive the implementation.
 - The page (`InfluencerDetail.tsx`) keeps its 12-col masonry but inherits all the redesigned tiles; updated its `CommercialsBlock` (now takes `followers`) and `ContentFitBlock` (now takes `city`) calls.
 - Whole-card click now opens the detail panel (not just the arrow). The card's `onClick` ignores anything originating from a button/link (`closest("button, a")`) so WhatsApp / copy / quick-book / arrow keep working; the arrow remains as the explicit keyboard-accessible affordance. The QuickBookPopover root now `stopPropagation`s clicks so interacting with it (it's portaled to body but bubbles through the React tree) doesn't also open the panel behind it.
 - tsc + eslint + production build all clean.
+
+## Influencer Location Filter (DONE)
+- Added a Location filter to the influencer page: All / Makkah / Jeddah / Madinah / Riyadh / Taif, as a pill row with live counts (same row style as the Reliability filter).
+- New `constants/influencer-cities.ts`: canonical cities + `cityBuckets(rawCity)` keyword normalizer. The stored `city` is messy free text — Arabic spelling variants (جدة / جده, مكة / مكة المكرمة / مكه المكرمه, المدينة المنورة / المدينه), a few English values, and two rows naming two cities (مكة - جدة, جدة او مكة). The normalizer matches Arabic + English substrings, so variants collapse onto one bucket and multi-city rows match **both**.
+- Filter runs client-side (peer of the tier/platform filters) — no backend change, no migration. Filter cascade is now tier+platform → **city** → status → reliability. City counts partition the tier+platform set (so a multi-city creator counts under each city; counts can sum past the "All" total); status-tab counts now partition the city-filtered set so they react to the active location.
+- Normalizes for filtering only — cards/panel still display the raw stored value. Displayed-city cleanup remains a separate optional task.
+- tsc + eslint + production build all clean.
