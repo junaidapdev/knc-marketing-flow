@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ChevronDown, Plus, Search, ShieldCheck } from "lucide-react";
 import { ROUTES } from "../constants/routes";
 import {
@@ -24,6 +24,7 @@ import {
 } from "../constants/influencer-platforms";
 import { InfluencerFormModal } from "../features/influencers/InfluencerFormModal";
 import { InfluencerCard } from "../features/influencers/InfluencerCard";
+import { InfluencerDetailPanel } from "../features/influencers/InfluencerDetailPanel";
 import { UndoToast } from "../features/influencers/UndoToast";
 import { useInfluencersWithReliability } from "../features/influencers/hooks/use-influencers";
 import { useDeleteEntry } from "../features/calendar/hooks/use-calendar-entries";
@@ -80,8 +81,8 @@ function compositeReliability(rel: InfluencerReliability | null): number | null 
 }
 
 export default function InfluencersPage(): JSX.Element {
-  const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusKey>("all");
   const [tier, setTier] = useState<TierKey>("all");
   const [platforms, setPlatforms] = useState<InfluencerPlatform[]>([]);
@@ -380,7 +381,7 @@ export default function InfluencersPage(): JSX.Element {
             <InfluencerCard
               key={influencer.id}
               influencer={influencer}
-              onView={() => navigate(ROUTES.INFLUENCER_DETAIL(influencer.id))}
+              onView={() => setDetailId(influencer.id)}
               onBooked={(args) => setUndoToast(args)}
             />
           ))}
@@ -392,6 +393,13 @@ export default function InfluencersPage(): JSX.Element {
         onClose={() => setCreating(false)}
         editing={null}
       />
+
+      {detailId && (
+        <InfluencerDetailPanel
+          influencerId={detailId}
+          onClose={() => setDetailId(null)}
+        />
+      )}
 
       {undoToast && (
         <UndoToast

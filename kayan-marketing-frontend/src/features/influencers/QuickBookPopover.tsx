@@ -199,6 +199,11 @@ export function QuickBookPopover({
       ref={popoverRef}
       role="dialog"
       aria-label={`Book a collab with ${primaryName}`}
+      // The popover is portaled to <body>, but React events still bubble
+      // through the component tree to the InfluencerCard's onClick. Stop
+      // them here so interacting with the popover doesn't also open the
+      // detail panel behind it.
+      onClick={(e) => e.stopPropagation()}
       style={{
         position: "fixed",
         top: position.top,

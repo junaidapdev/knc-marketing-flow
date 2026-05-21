@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { ArrowUpRight, CalendarDays, Check, Copy } from "lucide-react";
 import { QuickBookPopover } from "./QuickBookPopover";
 import { splitDisplayName } from "./utils/display-name";
+import { toWaUrl } from "./utils/whatsapp";
 import {
   INFLUENCER_STATUS_LABELS,
   type InfluencerStatus,
@@ -45,18 +46,6 @@ function formatCompact(value: number): string {
   }).format(value);
 }
 
-// Saudi WhatsApp number normalization for the wa.me link.
-//   05XXXXXXXX  →  9665XXXXXXXX
-//   +966...     →  966...
-//   5XXXXXXXX   →  9665XXXXXXXX (rare: typed without leading 0)
-function toWaNumber(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.startsWith("0") && digits.length === 10) return `966${digits.slice(1)}`;
-  if (digits.startsWith("966")) return digits;
-  if (digits.startsWith("5") && digits.length === 9) return `966${digits}`;
-  return digits;
-}
-
 type ReliabilityState = "reliable" | "mid" | "risky";
 
 // Composite = min of post / tag / on-time rates (matches the rule the
@@ -98,8 +87,7 @@ export function InfluencerCard({
   const platforms = getInfluencerPlatforms(influencer);
   const reliabilityState = classifyReliability(influencer.reliability);
 
-  const waNumber = useMemo(() => toWaNumber(influencer.whatsapp), [influencer.whatsapp]);
-  const waUrl = `https://wa.me/${waNumber}`;
+  const waUrl = useMemo(() => toWaUrl(influencer.whatsapp), [influencer.whatsapp]);
 
   const handleCopy = async (): Promise<void> => {
     try {
@@ -112,8 +100,20 @@ export function InfluencerCard({
     }
   };
 
+  // Whole-card click opens the detail panel. Action controls (WhatsApp /
+  // copy / quick-book / arrow) and the portaled quick-book popover handle
+  // their own clicks, so anything originating from a button or link is
+  // ignored here (the arrow button still calls onView itself).
+  const handleCardOpen = (event: React.MouseEvent<HTMLElement>): void => {
+    if ((event.target as HTMLElement).closest("button, a")) return;
+    onView();
+  };
+
   return (
-    <article className="card p-4 flex flex-col gap-3 hover:shadow-md transition-shadow">
+    <article
+      onClick={handleCardOpen}
+      className="card p-4 flex flex-col gap-3 hover:shadow-md transition-shadow cursor-pointer"
+    >
       {/* Header: name (English + Arabic) + tier */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
