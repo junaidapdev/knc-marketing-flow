@@ -241,6 +241,16 @@ ever want to revive the implementation.
 - Route `ROUTES.GOALS = "/goals"` added; sidebar `PRIMARY_NAV` gets a `Goals` entry between Reports and Budget using the `Target` icon.
 - Verification: tsc + eslint + production build all clean. Backend tsc + lint clean.
 
+## Report Card Hierarchy Pass (DONE)
+- Restructured the Content and Activities sections of `ReportCard.tsx` to give the report a real visual hierarchy. The headline numbers (per-platform video counts and shop activities) are now hero-sized instead of competing equally with zero-state filler.
+- **Content Published**: replaced the generic Videos/Stories 2-card row + prose breakdown with two stacked sub-blocks. Videos is the primary hero — three large platform-branded cards (TikTok obsidian, Instagram rose, Snapchat yellow) so the per-platform counts read at a glance. Stories is the secondary block — two lighter platform cards (Instagram + Snapchat) at a smaller size. The "X total" sub-header sits inline with each block.
+- **Activities & Campaigns**: renamed to "Shop Activities & Campaigns". Shop Activities is now a sage hero card with a 48px numeral and its delta badge, paired in a 1.4:1 grid with a `Campaigns` mini-card (Active / Completed / Top campaign, right-aligned values). Offers / Influencer collabs / General tasks demoted to a single thin meta strip beneath, so zero-state filler stops competing with the hero.
+- Added new presentational components in the same file: `PlatformStatCard` (lg/md sizes, platform-branded tones), `HeroStatCard` (48px hero number), `ContentSubheader` (label + total badge). Removed the now-unused `MetricCard`.
+- New constants in `src/constants/reports.ts`: `REPORT_PLATFORM_TONES` (3-platform hero palette), `REPORT_PLATFORM_STORY_TONES` (2-platform secondary palette), `REPORT_SHOP_ACTIVITY_TONE` (sage). Added `totalSuffix`, `campaignsHeading`, `activeShort`, `completedShort`, `otherActivityLabel` copy keys. Section title updated to "Shop Activities & Campaigns".
+- Influencer Collaborations and Performance Snapshot sections untouched — same 5-card row and coverage logic.
+- All colors reuse the existing cream palette (TikTok = current Videos card tone, IG = current Stories card tone, Snapchat = Kayan yellow, sage = positive-delta tone). PNG export unaffected — same 800px capture surface, plain Tailwind, no new CSS features. Text export (`build-report-text.ts`) unchanged.
+- Verification: tsc + eslint + production build all clean.
+
 ## Influencer Location Filter (DONE)
 - Added a Location filter to the influencer page: All / Makkah / Jeddah / Madinah / Riyadh / Taif, as a pill row with live counts (same row style as the Reliability filter).
 - New `constants/influencer-cities.ts`: canonical cities + `cityBuckets(rawCity)` keyword normalizer. The stored `city` is messy free text — Arabic spelling variants (جدة / جده, مكة / مكة المكرمة / مكه المكرمه, المدينة المنورة / المدينه), a few English values, and two rows naming two cities (مكة - جدة, جدة او مكة). The normalizer matches Arabic + English substrings, so variants collapse onto one bucket and multi-city rows match **both**.
