@@ -13,6 +13,7 @@ export const ROUTES = {
   CREATOR_PORTAL: (token: string) => `/creator/${token}`,
   PERFORMANCE: "/performance",
   REPORTS: "/reports",
+  GOALS: "/goals",
   BUDGET: "/budget",
   SETTINGS: "/settings",
 } as const;

@@ -14,6 +14,7 @@ import {
   Lightbulb,
   CalendarDays,
   Users,
+  Target,
   type LucideIcon,
 } from "lucide-react";
 import { ROUTES } from "../constants/routes";
@@ -39,6 +40,7 @@ const PRIMARY_NAV: ReadonlyArray<NavEntry> = [
   { to: ROUTES.INFLUENCERS, label: "Influencers", icon: Users },
   { to: ROUTES.PERFORMANCE, label: "Performance", icon: BarChart3 },
   { to: ROUTES.REPORTS, label: "Reports", icon: FileText },
+  { to: ROUTES.GOALS, label: "Goals", icon: Target },
   { to: ROUTES.BUDGET, label: "Budget", icon: Wallet },
 ];
 

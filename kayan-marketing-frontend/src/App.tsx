@@ -17,6 +17,7 @@ import PendingVerificationsPage from "./pages/PendingVerifications";
 import CreatorPortalPage from "./pages/CreatorPortal";
 import PerformancePage from "./pages/Performance";
 import ReportsPage from "./pages/Reports";
+import GoalsPage from "./pages/Goals";
 import BudgetPage from "./pages/Budget";
 import SettingsPage from "./pages/Settings";
 
@@ -62,6 +63,7 @@ function AppRoutes(): JSX.Element {
         <Route path="/influencers/:id" element={<InfluencerDetailPage />} />
         <Route path={ROUTES.PERFORMANCE} element={<PerformancePage />} />
         <Route path={ROUTES.REPORTS} element={<ReportsPage />} />
+        <Route path={ROUTES.GOALS} element={<GoalsPage />} />
         <Route path={ROUTES.BUDGET} element={<BudgetPage />} />
         <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
         <Route path="/" element={<Navigate to={ROUTES.TODAY} replace />} />

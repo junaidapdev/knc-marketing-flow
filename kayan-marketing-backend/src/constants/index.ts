@@ -12,3 +12,4 @@ export * from "./influencer-languages";
 export * from "./influencer-submissions";
 export * from "./report-periods";
 export * from "./script-revision";
+export * from "./monthly-video-plan";
