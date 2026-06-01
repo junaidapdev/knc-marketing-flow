@@ -76,10 +76,27 @@ export const REPORT_RANGE_ERROR_MESSAGES = {
 
 export const REPORT_SECTION_TITLES = {
   content: "Content Published",
-  activities: "Activities & Campaigns",
+  activities: "Shop Activities & Campaigns",
   influencers: "Influencer Collaborations",
   performance: "Performance Snapshot",
 } as const;
+
+// Hero-size platform tones for the Videos block (one per platform).
+// Tuned to evoke each platform while staying inside the existing cream palette.
+export const REPORT_PLATFORM_TONES = {
+  tiktok: "bg-[#1C1C1C] text-white",
+  instagram: "bg-[#F8D4C0] text-[#7A3520]",
+  snapchat: "bg-[#FFD23F] text-[#0E0E0E]",
+} as const;
+
+// Lighter, secondary-weight tones for the Stories block.
+export const REPORT_PLATFORM_STORY_TONES = {
+  instagram: "bg-[#FCEAE0] text-[#7A3520]",
+  snapchat: "bg-[#FFF0B8] text-[#6B4A0F]",
+} as const;
+
+// Sage hero tone for the Shop Activities headline card.
+export const REPORT_SHOP_ACTIVITY_TONE = "bg-[#C9DFC8] text-[#2C5530]";
 
 export const REPORT_METRIC_LABELS = {
   videos: "Videos",
@@ -120,6 +137,11 @@ export const REPORT_CARD_COPY = {
   activeCampaigns: "Active campaigns this period:",
   completed: "Completed:",
   topCampaign: "Top campaign:",
+  totalSuffix: "total",
+  campaignsHeading: "Campaigns",
+  activeShort: "Active",
+  completedShort: "Completed",
+  otherActivityLabel: "Other activity",
   entriesLabel: "entries",
   noSubmissionSuffix: "collabs with no submission",
   performanceAvailableFor: "Performance data available for",
