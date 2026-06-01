@@ -224,6 +224,22 @@ ever want to revive the implementation.
 - Whole-card click now opens the detail panel (not just the arrow). The card's `onClick` ignores anything originating from a button/link (`closest("button, a")`) so WhatsApp / copy / quick-book / arrow keep working; the arrow remains as the explicit keyboard-accessible affordance. The QuickBookPopover root now `stopPropagation`s clicks so interacting with it (it's portaled to body but bubbles through the React tree) doesn't also open the panel behind it.
 - tsc + eslint + production build all clean.
 
+## Monthly Video Plan Chunk 2: Compact UI pass (DONE)
+- Density pass on `/goals` after the initial chunk read as too airy in production. Each row was ~80px of mostly whitespace; the standalone total card duplicated information; and the per-item "videos" subtext was redundant when the page is literally called "Monthly video plan."
+- **Total moves into the header subtitle**: `June 2026 · 31–33 videos planned`. Dropped the cream stat card entirely. Saves a full card row above the fold.
+- **Items + add row consolidated into a single `card p-0 divide-y divide-line` container.** No more per-row card chrome — each item is just a divided row inside one shared surface. Far less visual noise, much easier to scan the list as a list.
+- **ItemRow** (`flex items-center gap-3 px-4 py-2`):
+  • Count down to 19px serif (was 26px), right-aligned in a 44px column so single-digit and range values share an edge.
+  • Label at 14px, truncates on overflow.
+  • Removed the redundant `videos` subtext under every label.
+  • Edit / delete icons at 13px with 60% opacity until hover so they recede into the row.
+  • Hover tint on the whole row (`hover:bg-cream-2/30`) so each row reads as an interactive target without per-row borders.
+- **Edit state stays in-place** — no card pop-out. The row swaps to a form on the same divided slot with `bg-cream-2/40 ring-1 ring-inset ring-yellow/40`, so editing reads as "elevated within the list" instead of breaking the layout.
+- **AddItemRow** now lives as the final divided row inside the items card. Dropped the `Add a line item` eyebrow (the input placeholders make intent obvious), tightened inputs (8px radius, smaller font, 1.5 py), subtle `bg-cream/30` wash to differentiate it from items above.
+- **Empty state collapsed** from a centered card (~120px tall) to a single inline strip: hint text on the left, `Copy from previous month` ghost button on the right.
+- No behavior changes — same hooks, same validation, same mutations. Pure layout / density refactor.
+- Verification: tsc + eslint + production build all clean.
+
 ## Monthly Video Plan Chunk 1: Standalone /goals page (DONE)
 - New `/goals` page in the sidebar between Reports and Budget (Target icon from lucide). A simple per-month list of planned video buckets. Deliberately decoupled from the calendar — this is a planning view, not a tracker. No platform splits, no completion field, no pace bars in V1.
 - Mirrors the budget month-picker UX: `← This month →` header, `Date` cursor in `startOfMonth(new Date())` state, `format(cursor, "yyyy-MM-01")` becomes the `month` query param sent to the backend.
