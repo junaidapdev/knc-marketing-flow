@@ -164,3 +164,17 @@ revive the implementation.
 ## Topic Generator V2 COMPLETE
 - V2 now combines long memory, server-side near-duplicate protection, generation modes, strategic lanes, and a critic/scoring pass.
 - Follow-ups: store score metadata in dedicated columns if reporting is needed; add embeddings-based similarity if token overlap is not enough; learn from accepted vs archived ideas to tune future generation.
+
+## Monthly Video Plan Chunk 1: Standalone /goals view (DONE)
+- New feature: a simple per-month list of planned video buckets, intentionally standalone — NOT linked to `calendar_entries`. The user explicitly scoped this as a planning view only ("don't touch the calendar; I just want the view"), so there is no auto-tracking, no platform splits, no pace logic, no completion field. One table, one Edge Function, that's it.
+- **Migration 0055** adds `monthly_video_plan_items` (id, brand_id FK, month date, label text, count int > 0, count_max int nullable with check `count_max >= count`, sort_order int default 0, created_at, updated_at). Composite index on `(brand_id, month, sort_order)`. `set_updated_at` trigger. RLS authenticated_full_access. Check constraints enforce non-blank labels, positive counts, valid ranges, and `month` always being first-of-month.
+- New constants `MONTHLY_VIDEO_PLAN_LABEL_MAX_LENGTH = 120`, `MONTHLY_VIDEO_PLAN_COUNT_MIN/MAX = 1/999`, `MONTHLY_VIDEO_PLAN_SORT_GAP = 10`, `MONTHLY_VIDEO_PLAN_MONTH_DATE_REGEX = /^\d{4}-\d{2}-01$/`.
+- New domain type `MonthlyVideoPlanItem` and Zod schemas: `monthlyVideoPlanCreateSchema`, `monthlyVideoPlanUpdateSchema`, `monthlyVideoPlanCopySchema`. Cross-field `superRefine` enforces `countMax >= count` on both create and update.
+- New Edge Function `monthly-video-plan`:
+  • `GET /monthly-video-plan?brandId=&month=YYYY-MM-01` — list items sorted by `sort_order`, then `created_at`.
+  • `POST /monthly-video-plan` — create. Computes next `sort_order` as `max + SORT_GAP` so new rows append at the end.
+  • `PATCH /monthly-video-plan/:id` — partial update of label / count / countMax / sortOrder. Returns 422 if no fields provided.
+  • `DELETE /monthly-video-plan/:id` — 204.
+  • `POST /monthly-video-plan/copy-from-previous` — body `{ brandId, targetMonth, sourceMonth }`. Reads source-month rows in `sort_order`, bulk-inserts into target month preserving labels / counts / sort_order. Returns the inserted rows with `meta.copied` count. Source-empty returns `[]` with `copied: 0`.
+- All endpoints follow the standard ApiResponse shape via `_shared/response.ts`; snake → camel via `_shared/case.ts`. Validation inlined into the Edge Function (Edge Functions can't import from `src/`); the same schemas live in `src/validation/monthly-video-plan.ts` so the rules are visible in one place and stay aligned.
+- Operational follow-up: `supabase db push` to land 0055; `supabase functions deploy monthly-video-plan`.

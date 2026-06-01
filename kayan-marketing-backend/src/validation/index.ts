@@ -10,3 +10,4 @@ export * from "./products";
 export * from "./influencer-submission";
 export * from "./report-summary";
 export * from "./script-revision";
+export * from "./monthly-video-plan";

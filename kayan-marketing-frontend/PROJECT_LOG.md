@@ -224,6 +224,23 @@ ever want to revive the implementation.
 - Whole-card click now opens the detail panel (not just the arrow). The card's `onClick` ignores anything originating from a button/link (`closest("button, a")`) so WhatsApp / copy / quick-book / arrow keep working; the arrow remains as the explicit keyboard-accessible affordance. The QuickBookPopover root now `stopPropagation`s clicks so interacting with it (it's portaled to body but bubbles through the React tree) doesn't also open the panel behind it.
 - tsc + eslint + production build all clean.
 
+## Monthly Video Plan Chunk 1: Standalone /goals page (DONE)
+- New `/goals` page in the sidebar between Reports and Budget (Target icon from lucide). A simple per-month list of planned video buckets. Deliberately decoupled from the calendar — this is a planning view, not a tracker. No platform splits, no completion field, no pace bars in V1.
+- Mirrors the budget month-picker UX: `← This month →` header, `Date` cursor in `startOfMonth(new Date())` state, `format(cursor, "yyyy-MM-01")` becomes the `month` query param sent to the backend.
+- Page structure:
+  • **Header** — title `Goals` with `<em>Monthly video plan</em>` suffix and the formatted month label, plus the prev/now/next nav.
+  • **Total card** (`card-cream`) showing `videos planned` left and the total count (or range `min–max` when any item has `countMax`) on the right.
+  • **Items list** — one `ItemRow` per item: serif-large count number on the left (`"3"` or `"5–7"`), label + `videos` subtext, pencil + trash icons. Pencil swaps the row into an inline edit form; trash becomes a two-button confirm strip.
+  • **Inline add row** — always-visible card at the bottom: count input, optional max input, label input, `Add` button. No modal.
+  • **Empty state** — when the month has no items: explanatory card with a `Copy from previous month` button that hits the backend's copy endpoint. Shows a friendly message if the previous month was also empty.
+- New constants `MONTHLY_VIDEO_PLAN_COPY` (page labels, button copy, empty/error strings, range joiner `"–"`), bounds mirrored from backend (`MONTHLY_VIDEO_PLAN_LABEL_MAX_LENGTH = 120`, count 1–999), and date format strings.
+- New frontend type `MonthlyVideoPlanItem` mirroring the backend domain shape.
+- Five hooks in `features/monthly-video-plan/hooks/use-monthly-video-plan.ts`: `useMonthlyVideoPlan` (list), `useCreatePlanItem`, `useUpdatePlanItem` (builds a clean PATCH body so `brandId`/`month` aren't sent — they're only used for cache invalidation), `useDeletePlanItem`, `useCopyFromPreviousMonth`. All invalidate the `["monthly-video-plan", brandId, month]` query on success.
+- Two pure-presentation components: `AddItemRow` (inline form with full client-side validation: trimmed label required + within length, count int in 1–999, optional max int >= count) and `ItemRow` (read view + same inline edit form). Both share the same validation logic so the rules are consistent.
+- `format-count.ts` utility centralizes the single-vs-range display logic so the count rendering on item rows and the total card stay in sync.
+- Route `ROUTES.GOALS = "/goals"` added; sidebar `PRIMARY_NAV` gets a `Goals` entry between Reports and Budget using the `Target` icon.
+- Verification: tsc + eslint + production build all clean. Backend tsc + lint clean.
+
 ## Report Card Hierarchy Pass (DONE)
 - Restructured the Content and Activities sections of `ReportCard.tsx` to give the report a real visual hierarchy. The headline numbers (per-platform video counts and shop activities) are now hero-sized instead of competing equally with zero-state filler.
 - **Content Published**: replaced the generic Videos/Stories 2-card row + prose breakdown with two stacked sub-blocks. Videos is the primary hero — three large platform-branded cards (TikTok obsidian, Instagram rose, Snapchat yellow) so the per-platform counts read at a glance. Stories is the secondary block — two lighter platform cards (Instagram + Snapchat) at a smaller size. The "X total" sub-header sits inline with each block.
