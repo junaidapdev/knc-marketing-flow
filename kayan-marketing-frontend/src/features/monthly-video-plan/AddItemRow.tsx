@@ -86,10 +86,7 @@ export function AddItemRow({ onAdd, disabled }: Props): JSX.Element {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="card p-4 space-y-2.5">
-      <div className="text-[10.5px] uppercase tracking-[0.13em] text-ink-3 font-bold">
-        {MONTHLY_VIDEO_PLAN_COPY.addRowLabel}
-      </div>
+    <form onSubmit={handleSubmit} className="px-4 py-2.5 space-y-2 bg-cream/30">
       <div className="flex flex-wrap gap-2 items-stretch">
         <input
           type="number"
@@ -100,7 +97,7 @@ export function AddItemRow({ onAdd, disabled }: Props): JSX.Element {
           value={count}
           onChange={(e) => setCount(e.target.value)}
           disabled={disabled || busy}
-          className="w-[88px] rounded-[10px] border border-line bg-paper px-3 py-2 text-[14px] text-ink tabular-nums focus:outline-none focus:ring-2 focus:ring-yellow/50"
+          className="w-[80px] rounded-[8px] border border-line bg-paper px-3 py-1.5 text-[13.5px] text-ink tabular-nums focus:outline-none focus:ring-2 focus:ring-yellow/50"
           aria-label={MONTHLY_VIDEO_PLAN_COPY.addRowCountPlaceholder}
           required
         />
@@ -113,7 +110,7 @@ export function AddItemRow({ onAdd, disabled }: Props): JSX.Element {
           value={countMax}
           onChange={(e) => setCountMax(e.target.value)}
           disabled={disabled || busy}
-          className="w-[120px] rounded-[10px] border border-line bg-paper px-3 py-2 text-[14px] text-ink tabular-nums focus:outline-none focus:ring-2 focus:ring-yellow/50"
+          className="w-[110px] rounded-[8px] border border-line bg-paper px-3 py-1.5 text-[13.5px] text-ink tabular-nums focus:outline-none focus:ring-2 focus:ring-yellow/50"
           aria-label={MONTHLY_VIDEO_PLAN_COPY.addRowMaxPlaceholder}
         />
         <input
@@ -123,16 +120,16 @@ export function AddItemRow({ onAdd, disabled }: Props): JSX.Element {
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           disabled={disabled || busy}
-          className="flex-1 min-w-[160px] rounded-[10px] border border-line bg-paper px-3 py-2 text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-yellow/50"
+          className="flex-1 min-w-[160px] rounded-[8px] border border-line bg-paper px-3 py-1.5 text-[13.5px] text-ink focus:outline-none focus:ring-2 focus:ring-yellow/50"
           aria-label={MONTHLY_VIDEO_PLAN_COPY.addRowLabelPlaceholder}
           required
         />
         <button
           type="submit"
           disabled={disabled || busy}
-          className="btn btn-primary"
+          className="btn btn-primary text-[12.5px] px-3 py-1.5"
         >
-          <Plus size={14} />
+          <Plus size={13} />
           <span>{MONTHLY_VIDEO_PLAN_COPY.addRowButton}</span>
         </button>
       </div>

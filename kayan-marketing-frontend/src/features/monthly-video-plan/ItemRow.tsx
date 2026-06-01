@@ -120,7 +120,7 @@ export function ItemRow({ item, onSave, onDelete }: Props): JSX.Element {
     return (
       <form
         onSubmit={handleSave}
-        className="card p-4 space-y-2.5 ring-1 ring-yellow/40"
+        className="px-4 py-3 space-y-2 bg-cream-2/40 ring-1 ring-inset ring-yellow/40"
       >
         <div className="flex flex-wrap gap-2 items-stretch">
           <input
@@ -131,7 +131,7 @@ export function ItemRow({ item, onSave, onDelete }: Props): JSX.Element {
             value={count}
             onChange={(e) => setCount(e.target.value)}
             disabled={busy}
-            className="w-[88px] rounded-[10px] border border-line bg-paper px-3 py-2 text-[14px] text-ink tabular-nums focus:outline-none focus:ring-2 focus:ring-yellow/50"
+            className="w-[80px] rounded-[8px] border border-line bg-paper px-3 py-1.5 text-[13.5px] text-ink tabular-nums focus:outline-none focus:ring-2 focus:ring-yellow/50"
             aria-label={MONTHLY_VIDEO_PLAN_COPY.addRowCountPlaceholder}
             required
           />
@@ -144,7 +144,7 @@ export function ItemRow({ item, onSave, onDelete }: Props): JSX.Element {
             value={countMax}
             onChange={(e) => setCountMax(e.target.value)}
             disabled={busy}
-            className="w-[120px] rounded-[10px] border border-line bg-paper px-3 py-2 text-[14px] text-ink tabular-nums focus:outline-none focus:ring-2 focus:ring-yellow/50"
+            className="w-[110px] rounded-[8px] border border-line bg-paper px-3 py-1.5 text-[13.5px] text-ink tabular-nums focus:outline-none focus:ring-2 focus:ring-yellow/50"
             aria-label={MONTHLY_VIDEO_PLAN_COPY.addRowMaxPlaceholder}
           />
           <input
@@ -153,22 +153,26 @@ export function ItemRow({ item, onSave, onDelete }: Props): JSX.Element {
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             disabled={busy}
-            className="flex-1 min-w-[160px] rounded-[10px] border border-line bg-paper px-3 py-2 text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-yellow/50"
+            className="flex-1 min-w-[160px] rounded-[8px] border border-line bg-paper px-3 py-1.5 text-[13.5px] text-ink focus:outline-none focus:ring-2 focus:ring-yellow/50"
             aria-label={MONTHLY_VIDEO_PLAN_COPY.addRowLabelPlaceholder}
             required
             autoFocus
           />
-          <button type="submit" disabled={busy} className="btn btn-primary">
-            <Check size={14} />
+          <button
+            type="submit"
+            disabled={busy}
+            className="btn btn-primary text-[12.5px] px-3 py-1.5"
+          >
+            <Check size={13} />
             <span>{MONTHLY_VIDEO_PLAN_COPY.itemSaveLabel}</span>
           </button>
           <button
             type="button"
             onClick={cancelEdit}
             disabled={busy}
-            className="btn btn-ghost"
+            className="btn btn-ghost text-[12.5px] px-3 py-1.5"
           >
-            <X size={14} />
+            <X size={13} />
             <span>{MONTHLY_VIDEO_PLAN_COPY.itemCancelLabel}</span>
           </button>
         </div>
@@ -178,30 +182,27 @@ export function ItemRow({ item, onSave, onDelete }: Props): JSX.Element {
   }
 
   return (
-    <div className="card p-4 flex items-center gap-4">
-      <div className="font-serif text-[26px] leading-none text-ink tabular-nums min-w-[56px] text-center">
+    <div className="flex items-center gap-3 px-4 py-2 hover:bg-cream-2/30 transition-colors">
+      <div className="font-serif text-[19px] leading-none text-ink tabular-nums min-w-[44px] text-right">
         {formatItemCount(item.count, item.countMax)}
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-[14.5px] text-ink truncate">{item.label}</div>
-        <div className="text-[11px] text-ink-3 mt-0.5">
-          {MONTHLY_VIDEO_PLAN_COPY.countSuffix}
-        </div>
+      <div className="flex-1 min-w-0 text-[14px] text-ink truncate">
+        {item.label}
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5 -mr-1">
         {confirmingDelete ? (
           <>
             <button
               onClick={handleDelete}
               disabled={busy}
-              className="btn btn-primary text-[12px] px-3 py-1.5"
+              className="btn btn-primary text-[12px] px-2.5 py-1"
             >
               {MONTHLY_VIDEO_PLAN_COPY.deleteConfirmConfirm}
             </button>
             <button
               onClick={() => setConfirmingDelete(false)}
               disabled={busy}
-              className="btn btn-ghost text-[12px] px-3 py-1.5"
+              className="btn btn-ghost text-[12px] px-2.5 py-1"
             >
               {MONTHLY_VIDEO_PLAN_COPY.deleteConfirmCancel}
             </button>
@@ -213,18 +214,18 @@ export function ItemRow({ item, onSave, onDelete }: Props): JSX.Element {
               onClick={startEdit}
               aria-label={MONTHLY_VIDEO_PLAN_COPY.itemEditLabel}
               title={MONTHLY_VIDEO_PLAN_COPY.itemEditLabel}
-              className="iconbtn"
+              className="iconbtn opacity-60 hover:opacity-100"
             >
-              <Pencil size={14} />
+              <Pencil size={13} />
             </button>
             <button
               type="button"
               onClick={() => setConfirmingDelete(true)}
               aria-label={MONTHLY_VIDEO_PLAN_COPY.itemDeleteLabel}
               title={MONTHLY_VIDEO_PLAN_COPY.itemDeleteLabel}
-              className="iconbtn"
+              className="iconbtn opacity-60 hover:opacity-100"
             >
-              <Trash2 size={14} />
+              <Trash2 size={13} />
             </button>
           </>
         )}
