@@ -9,9 +9,14 @@ import {
   REPORT_DISPLAY_TIMESTAMP_FORMAT,
   REPORT_METRIC_LABELS,
   REPORT_PLATFORM_LABELS,
+  REPORT_PLATFORM_STORY_TONES,
+  REPORT_PLATFORM_TONES,
   REPORT_SECTION_TITLES,
+  REPORT_SHOP_ACTIVITY_TONE,
 } from "../../constants/reports";
 import type { ReportSummary } from "../../types/report-summary";
+
+type PlatformKey = keyof typeof REPORT_PLATFORM_LABELS;
 
 interface Props {
   summary: ReportSummary;
@@ -69,30 +74,6 @@ function Section({
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  tone,
-  delta,
-}: {
-  label: string;
-  value: number | string;
-  tone: string;
-  delta?: ReactNode;
-}): JSX.Element {
-  return (
-    <div className={`rounded-[8px] px-4 py-3 ${tone}`}>
-      <div className="text-[10px] uppercase tracking-[0.14em] font-bold opacity-75">
-        {label}
-      </div>
-      <div className="mt-1.5 text-[26px] leading-none font-semibold tabular-nums">
-        {typeof value === "number" ? formatNumber(value) : value}
-      </div>
-      {delta && <div className="mt-2">{delta}</div>}
-    </div>
-  );
-}
-
 function SmallStat({
   label,
   value,
@@ -111,6 +92,80 @@ function SmallStat({
         {formatNumber(value)}
       </div>
       {delta && <div className="mt-2">{delta}</div>}
+    </div>
+  );
+}
+
+// Per-platform hero card used in Videos (size "lg") and Stories (size "md").
+// The platform label is the headline; the count is the dominant numeral.
+function PlatformStatCard({
+  platform,
+  value,
+  size = "lg",
+  tone,
+}: {
+  platform: PlatformKey;
+  value: number;
+  size?: "lg" | "md";
+  tone: string;
+}): JSX.Element {
+  const padding = size === "lg" ? "px-5 py-5" : "px-4 py-4";
+  const valueSize = size === "lg" ? "text-[36px]" : "text-[28px]";
+  return (
+    <div className={`rounded-[10px] ${padding} ${tone}`}>
+      <div className="text-[10.5px] uppercase tracking-[0.15em] font-bold opacity-75">
+        {REPORT_PLATFORM_LABELS[platform]}
+      </div>
+      <div
+        className={`mt-2 ${valueSize} leading-none font-semibold tabular-nums`}
+      >
+        {formatNumber(value)}
+      </div>
+    </div>
+  );
+}
+
+// Oversized hero card for the Shop Activities headline.
+function HeroStatCard({
+  label,
+  value,
+  tone,
+  delta,
+}: {
+  label: string;
+  value: number;
+  tone: string;
+  delta?: ReactNode;
+}): JSX.Element {
+  return (
+    <div className={`rounded-[12px] px-6 py-6 ${tone}`}>
+      <div className="text-[10.5px] uppercase tracking-[0.15em] font-bold opacity-75">
+        {label}
+      </div>
+      <div className="mt-2 text-[48px] leading-none font-semibold tabular-nums">
+        {formatNumber(value)}
+      </div>
+      {delta && <div className="mt-3">{delta}</div>}
+    </div>
+  );
+}
+
+// Compact sub-section heading + total badge used above Videos and Stories.
+function ContentSubheader({
+  label,
+  total,
+}: {
+  label: string;
+  total: number;
+}): JSX.Element {
+  return (
+    <div className="flex items-baseline justify-between mb-2">
+      <h3 className="text-[12px] font-semibold text-[#1C1C1C] uppercase tracking-[0.12em]">
+        {label}
+      </h3>
+      <div className="text-[12px] text-[#8C8B85] tabular-nums">
+        {formatNumber(total)} {REPORT_CARD_COPY.totalSuffix}
+      </div>
     </div>
   );
 }
@@ -163,7 +218,7 @@ export const ReportCard = forwardRef<HTMLElement, Props>(function ReportCard(
 
       <div className="px-8 py-7 space-y-7">
         <Section title={REPORT_SECTION_TITLES.content}>
-          <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+          <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
             <div>
               <div className="text-[46px] leading-none font-semibold tabular-nums">
                 {formatNumber(summary.content.totalPosted)}
@@ -185,56 +240,62 @@ export const ReportCard = forwardRef<HTMLElement, Props>(function ReportCard(
               </div>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <MetricCard
+
+          {/* Videos — primary hero block, 3 platform cards */}
+          <div className="mb-5">
+            <ContentSubheader
               label={REPORT_METRIC_LABELS.videos}
-              value={summary.content.videosTotal}
-              tone="bg-[#1C1C1C] text-white"
+              total={summary.content.videosTotal}
             />
-            <MetricCard
-              label={REPORT_METRIC_LABELS.stories}
-              value={summary.content.storiesTotal}
-              tone="bg-[#F8D4C0] text-[#7A3520]"
-            />
+            <div className="grid grid-cols-3 gap-3">
+              <PlatformStatCard
+                platform="tiktok"
+                value={summary.content.videosByPlatform.tiktok}
+                tone={REPORT_PLATFORM_TONES.tiktok}
+              />
+              <PlatformStatCard
+                platform="instagram"
+                value={summary.content.videosByPlatform.instagram}
+                tone={REPORT_PLATFORM_TONES.instagram}
+              />
+              <PlatformStatCard
+                platform="snapchat"
+                value={summary.content.videosByPlatform.snapchat}
+                tone={REPORT_PLATFORM_TONES.snapchat}
+              />
+            </div>
           </div>
-          <div className="mt-4 rounded-[10px] bg-[#FBF6E9] border border-[#E6DFC9] px-4 py-3 text-[13px] text-[#4A4A48] space-y-1.5">
-            <p>
-              <strong className="text-[#1C1C1C]">{REPORT_METRIC_LABELS.videos}:</strong>{" "}
-              {REPORT_PLATFORM_LABELS.tiktok}{" "}
-              <strong className="text-[#1C1C1C]">
-                {formatNumber(summary.content.videosByPlatform.tiktok)}
-              </strong>
-              {REPORT_CARD_COPY.metaSeparator}
-              {REPORT_PLATFORM_LABELS.instagram}{" "}
-              <strong className="text-[#1C1C1C]">
-                {formatNumber(summary.content.videosByPlatform.instagram)}
-              </strong>
-              {REPORT_CARD_COPY.metaSeparator}
-              {REPORT_PLATFORM_LABELS.snapchat}{" "}
-              <strong className="text-[#1C1C1C]">
-                {formatNumber(summary.content.videosByPlatform.snapchat)}
-              </strong>
-            </p>
-            <p>
-              <strong className="text-[#1C1C1C]">{REPORT_METRIC_LABELS.stories}:</strong>{" "}
-              {REPORT_PLATFORM_LABELS.instagram}{" "}
-              <strong className="text-[#1C1C1C]">
-                {formatNumber(summary.content.storiesByPlatform.instagram)}
-              </strong>
-              {REPORT_CARD_COPY.metaSeparator}
-              {REPORT_PLATFORM_LABELS.snapchat}{" "}
-              <strong className="text-[#1C1C1C]">
-                {formatNumber(summary.content.storiesByPlatform.snapchat)}
-              </strong>
-            </p>
+
+          {/* Stories — secondary block, 2 lighter platform cards */}
+          <div>
+            <ContentSubheader
+              label={REPORT_METRIC_LABELS.stories}
+              total={summary.content.storiesTotal}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <PlatformStatCard
+                platform="instagram"
+                value={summary.content.storiesByPlatform.instagram}
+                size="md"
+                tone={REPORT_PLATFORM_STORY_TONES.instagram}
+              />
+              <PlatformStatCard
+                platform="snapchat"
+                value={summary.content.storiesByPlatform.snapchat}
+                size="md"
+                tone={REPORT_PLATFORM_STORY_TONES.snapchat}
+              />
+            </div>
           </div>
         </Section>
 
         <Section title={REPORT_SECTION_TITLES.activities}>
-          <div className="grid grid-cols-4 gap-3">
-            <SmallStat
+          {/* Hero row: Shop Activities (sage hero) + Campaigns mini-card */}
+          <div className="grid grid-cols-[1.4fr,1fr] gap-3">
+            <HeroStatCard
               label={REPORT_METRIC_LABELS.shopActivities}
               value={summary.activities.shopActivities}
+              tone={REPORT_SHOP_ACTIVITY_TONE}
               delta={
                 <DeltaBadge
                   value={summary.comparison?.deltas.shopActivities ?? null}
@@ -242,48 +303,64 @@ export const ReportCard = forwardRef<HTMLElement, Props>(function ReportCard(
                 />
               }
             />
-            <SmallStat
-              label={REPORT_METRIC_LABELS.offers}
-              value={summary.activities.offers}
-            />
-            <SmallStat
-              label={REPORT_METRIC_LABELS.influencerCollabs}
-              value={summary.activities.influencerCollabs}
-              delta={
-                <DeltaBadge
-                  value={summary.comparison?.deltas.influencerCollabs ?? null}
-                  label={comparisonLabel}
-                />
-              }
-            />
-            <SmallStat
-              label={REPORT_METRIC_LABELS.generalTasks}
-              value={summary.activities.generalTasks}
-            />
+            <div className="rounded-[12px] border border-[#E6DFC9] bg-[#FFFCF5] px-5 py-5">
+              <div className="text-[10.5px] uppercase tracking-[0.15em] text-[#8C8B85] font-bold">
+                {REPORT_CARD_COPY.campaignsHeading}
+              </div>
+              <div className="mt-3 space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[13px] text-[#4A4A48]">
+                    {REPORT_CARD_COPY.activeShort}
+                  </span>
+                  <span className="text-[22px] font-semibold tabular-nums text-[#1C1C1C]">
+                    {formatNumber(summary.campaigns.activeDuringPeriod)}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[13px] text-[#4A4A48]">
+                    {REPORT_CARD_COPY.completedShort}
+                  </span>
+                  <span className="text-[22px] font-semibold tabular-nums text-[#1C1C1C]">
+                    {formatNumber(summary.campaigns.completedDuringPeriod)}
+                  </span>
+                </div>
+                {summary.campaigns.topCampaign && (
+                  <div className="pt-1 text-[12px] text-[#4A4A48] leading-snug">
+                    {REPORT_CARD_COPY.topCampaign}{" "}
+                    <strong className="text-[#1C1C1C]">
+                      {summary.campaigns.topCampaign.name}
+                    </strong>{" "}
+                    ({formatNumber(summary.campaigns.topCampaign.entriesCount)}{" "}
+                    {REPORT_CARD_COPY.entriesLabel})
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="mt-4 rounded-[10px] bg-[#FBF6E9] border border-[#E6DFC9] px-4 py-3 text-[13px] text-[#4A4A48] space-y-1">
-            <p>
-              {REPORT_CARD_COPY.activeCampaigns}{" "}
+
+          {/* Demoted secondary activity counts — thin meta strip */}
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12.5px] text-[#4A4A48]">
+            <span className="text-[10.5px] uppercase tracking-[0.13em] text-[#8C8B85] font-bold">
+              {REPORT_CARD_COPY.otherActivityLabel}
+            </span>
+            <span>
+              {REPORT_METRIC_LABELS.offers}:{" "}
               <strong className="text-[#1C1C1C]">
-                {formatNumber(summary.campaigns.activeDuringPeriod)}
+                {formatNumber(summary.activities.offers)}
               </strong>
-            </p>
-            <p>
-              {REPORT_CARD_COPY.completed}{" "}
+            </span>
+            <span>
+              {REPORT_METRIC_LABELS.influencerCollabs}:{" "}
               <strong className="text-[#1C1C1C]">
-                {formatNumber(summary.campaigns.completedDuringPeriod)}
+                {formatNumber(summary.activities.influencerCollabs)}
               </strong>
-            </p>
-            {summary.campaigns.topCampaign && (
-              <p>
-                {REPORT_CARD_COPY.topCampaign}{" "}
-                <strong className="text-[#1C1C1C]">
-                  {summary.campaigns.topCampaign.name}
-                </strong>{" "}
-                ({formatNumber(summary.campaigns.topCampaign.entriesCount)}{" "}
-                {REPORT_CARD_COPY.entriesLabel})
-              </p>
-            )}
+            </span>
+            <span>
+              {REPORT_METRIC_LABELS.generalTasks}:{" "}
+              <strong className="text-[#1C1C1C]">
+                {formatNumber(summary.activities.generalTasks)}
+              </strong>
+            </span>
           </div>
         </Section>
 
